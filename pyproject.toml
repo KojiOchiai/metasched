@@ -1,0 +1,10 @@
+[project]
+name = "metashed"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.13.0",
+    "pydantic-ai>=0.7.2",
+]
