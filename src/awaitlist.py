@@ -73,7 +73,11 @@ class AwaitList:
         Yields:
             Task: The next task to be executed.
         """
+        active_task = None
         while True:
+            if active_task is not None:
+                yield active_task  # To avoid locking, yield outside of the condition.
+                active_task = None
             async with self.condition:  # Ensure the lock is acquired
                 if self.tasks:
                     now = datetime.now()
@@ -82,7 +86,7 @@ class AwaitList:
                     # If the next task is ready to execute
                     if next_task.execution_time <= now:
                         self.tasks.pop(0)  # Remove from the list
-                        yield next_task
+                        active_task = next_task
                         continue
 
                     # Wait until the next task time
