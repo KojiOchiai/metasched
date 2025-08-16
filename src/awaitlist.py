@@ -25,7 +25,7 @@ class AwaitList:
         self.condition = asyncio.Condition()
 
     async def add_task(
-        self, execution_time: datetime, contents: str, id: uuid.UUID | None = None
+        self, execution_time: datetime, content: str, id: uuid.UUID | None = None
     ) -> ATask:
         """
         Add a new task and return a task ID for cancellation.
@@ -42,7 +42,7 @@ class AwaitList:
             raise ValueError(f"Task with id {id} already exists.")
         async with self.condition:
             task_id = id if id is not None else uuid.uuid4()
-            task = ATask(execution_time=execution_time, id=task_id, content=contents)
+            task = ATask(execution_time=execution_time, id=task_id, content=content)
             self.tasks.append(task)
             self.tasks.sort(key=lambda x: x.execution_time)  # Sort tasks by time
             self.condition.notify_all()  # Notify waiting processes
