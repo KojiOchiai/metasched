@@ -24,6 +24,12 @@ class AwaitList:
         # For task notification
         self.condition = asyncio.Condition()
 
+    def get_tasks(self) -> list[ATask]:
+        """
+        Get the list of all tasks.
+        """
+        return self.tasks
+
     async def add_task(
         self, execution_time: datetime, content: str, id: uuid.UUID | None = None
     ) -> ATask:
