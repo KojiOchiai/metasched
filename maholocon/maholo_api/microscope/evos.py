@@ -50,7 +50,7 @@ class DummyCellImage:
         return cv2.bitwise_or(cell, ring) + 2
 
 
-def get_image(density: float, ring_edge: int = 9) -> None:
+def get_image(density: float, ring_edge: int = 9) -> np.ndarray:
     assert 0 <= density and density <= 1, density
     dummy_image = DummyCellImage(10000, 10)
     return dummy_image.draw(density, ring_edge)
@@ -60,7 +60,7 @@ def get_filepath(
     time: datetime, well_row: str, well_col: int, path: Path = Path("evos_save")
 ) -> Path:
     image_save_path = path
-    timestamp = datetime.strftime("%Y-%m-%d-%H-%M-%S")
+    timestamp = datetime.strftime(time, format="%Y-%m-%d-%H-%M-%S")
     dst_dir = image_save_path / f"scan.{timestamp}"
     dst_path = dst_dir / f"scan_Plate_TR_p00_0_{well_row}{well_col:02d}f00d3.TIFF"
     return dst_path
@@ -71,4 +71,4 @@ if __name__ == "__main__":
     image = get_image(density=0.1)
     filepath = get_filepath(datetime.now(), "A", 1)
     filepath.parent.mkdir(exist_ok=True)
-    cv2.imwrite(filepath, image)
+    cv2.imwrite(str(filepath), image)
