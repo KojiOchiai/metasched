@@ -27,9 +27,7 @@ async def main():
     executor = Agent(
         model,
         model_settings=model_settings,
-        system_prompt=(
-            'You are a task execution assistant (executor). \nYou can run "TaskA" or "TaskB"'
-        ),
+        system_prompt=("You are a task execution assistant (executor)."),
         tools=[execute_task],
     )
     scheduler_agent = Agent(
@@ -42,6 +40,7 @@ async def main():
             "As a scheduling task add tasks following rules. \n"
             "- TaskAの終了時刻から15秒後に次のTaskAをスケジュールしてください"
             "- 5回TaskAを実行してください"
+            "- 最初のタスクはスタートから2秒後に開始してください"
         ),
         tools=[
             scheduler.get_tasks,
@@ -51,9 +50,7 @@ async def main():
             scheduler.get_time,
         ],
     )
-    result = await scheduler_agent.run(
-        "initialize schedule: run first TaskA after 2 seconds"
-    )
+    result = await scheduler_agent.run("start")
     print(f"[Main] Scheduler initialized: {result.output}")
     await scheduler.process_tasks_with_agent(executor, scheduler_agent)
 
