@@ -5,7 +5,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
 from src.awaitlist import AwaitList
-from src.schedule import Scheduler
+from src.schedule import FileScheduleSaver, Scheduler
 
 
 async def execute_task(task_name: str) -> str:
@@ -17,7 +17,8 @@ async def execute_task(task_name: str) -> str:
 
 async def main():
     await_list = AwaitList()
-    scheduler = Scheduler(await_list)
+    schedule_saver = FileScheduleSaver("scheduler_state")
+    scheduler = Scheduler(await_list, saver=schedule_saver)
     model = OpenAIResponsesModel("o3")
     model_settings = OpenAIResponsesModelSettings(
         openai_reasoning_effort="low",
