@@ -54,6 +54,22 @@ class AwaitList:
             self.condition.notify_all()  # Notify waiting processes
             return task
 
+    async def update_task(
+        self, task_id: uuid.UUID, execution_time: datetime, content: str
+    ) -> bool:
+        """
+        Update a task in the await list.
+        """
+        async with self.condition:
+            for i, task in enumerate(self.tasks):
+                if task.id == task_id:
+                    self.tasks[i] = ATask(
+                        execution_time=execution_time, id=task_id, content=content
+                    )
+                    self.condition.notify_all()
+                    return True
+            return False
+
     async def cancel_task(self, task_id: uuid.UUID) -> bool:
         """
         Cancel a task by its ID.

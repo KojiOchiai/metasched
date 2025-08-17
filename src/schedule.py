@@ -7,7 +7,7 @@ from pydantic_ai import Agent
 from src.awaitlist import AwaitList
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("schedule")
 
 
 async def process_tasks_with_agent(
@@ -60,6 +60,32 @@ def get_add_task(await_list: AwaitList):
         return task
 
     return add_task
+
+
+def get_update_task(await_list: AwaitList):
+    async def update_task(
+        task_id: uuid.UUID, execution_time: datetime, remind_message: str
+    ) -> bool:
+        """
+        Update a task in the await list.
+        """
+        result = await await_list.update_task(task_id, execution_time, remind_message)
+        logger.info(f"[UpdateTask] Result for updating task {task_id}: {result}")
+        return result
+
+    return update_task
+
+
+def get_cancel_task(await_list: AwaitList):
+    async def cancel_task(task_id: uuid.UUID) -> bool:
+        """
+        Cancel a task in the await list.
+        """
+        result = await await_list.cancel_task(task_id)
+        logger.info(f"[CancelTask] Result for cancelling task {task_id}: {result}")
+        return result
+
+    return cancel_task
 
 
 def get_get_tasks(await_list: AwaitList):
