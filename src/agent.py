@@ -35,16 +35,16 @@ async def main():
         "openai:gpt-4o",
         system_prompt=(
             "You are a schedule management assistant (scheduler). \n"
-            "Add tasks following rules. \n"
+            'Write remind_message like "execute TaskA. note: this is 3rd execution"'
+            "As a scheduling task add tasks following rules. \n"
             "- TaskAの終了時刻から15秒後に次のTaskAをスケジュールしてください"
             "- Taskの終了までの時間はその時になるまでわかりません"
             "- 一度入れたスケジュールは削除、修正できないので注意してください。\n"
             "- 5回TaskAを実行してください"
-            "- タスク番号はTaskA(3)のように書いて管理してください。\n"
         ),
         tools=[get_get_tasks(await_list), add_task, get_time],
     )
-    result = await scheduler.run("initialize schedule")
+    result = await scheduler.run("initialize schedule: run first TaskA after 2 seconds")
     print(f"[Main] Scheduler initialized: {result.output}")
     await process_tasks_with_agent(await_list, executor, scheduler)
 
