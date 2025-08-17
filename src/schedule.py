@@ -15,6 +15,7 @@ async def process_tasks_with_agent(
 ):
     scheduler_history: list = []
     async for task in await_list.wait_for_next_task():
+        logger.info("====================[ProcessTask]====================")
         logger.info(
             f"[ProcessTask] Executing task: {task.content} at {task.execution_time}"
         )
@@ -47,12 +48,12 @@ async def process_tasks_with_agent(
 
 def get_add_task(await_list: AwaitList):
     async def add_task(
-        execution_time: datetime, content: str, id: uuid.UUID | None = None
+        execution_time: datetime, remind_message: str, id: uuid.UUID | None = None
     ):
         """
-        Add a new task to the await list.
+        Add a new remind_message to the await list.
         """
-        task = await await_list.add_task(execution_time, content, id)
+        task = await await_list.add_task(execution_time, remind_message, id)
         logger.info(
             f"[AddTask] Task added: {task.content} at {task.execution_time} with ID: {task.id}"
         )
