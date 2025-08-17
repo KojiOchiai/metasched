@@ -6,14 +6,27 @@ import click
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
+from maholocon.driver import MaholoDriver
 from src.awaitlist import AwaitList
 from src.schedule import FileScheduleSaver, Scheduler
 
 
-async def execute_task(task_name: str) -> str:
+async def execute_task_dummy(task_name: str) -> str:
     print(f"[Task] Executing {task_name} at {datetime.now()}")
     await asyncio.sleep(2)  # Simulate task execution time
     print(f"[Task] Finished {task_name} at {datetime.now()}")
+    return f"Executed {task_name} at {datetime.now()}"
+
+
+driver = MaholoDriver()
+
+
+async def execute_task_maholo(task_name: str) -> str:
+    print(f"[Maholo Protocol] Executing {task_name} at {datetime.now()}")
+    result = await driver.run(task_name)
+    print(
+        f"[Maholo Protocol] Finished {task_name} at {datetime.now()} result: {result}"
+    )
     return f"Executed {task_name} at {datetime.now()}"
 
 
@@ -32,7 +45,13 @@ async def amain(scheduler_agent: Agent, executor_agent: Agent, scheduler: Schedu
     default=None,
     help="Load existing scheduler state from file",
 )
-def main(prompt_file: str, load: str | None):
+@click.option(
+    "--driver",
+    type=str,
+    default="dummy",
+    help="Driver to use. maholo/dummy (default: dummy)",
+)
+def main(prompt_file: str, load: str | None, driver: str):
     prompt_text = Path(prompt_file).read_text(encoding="utf-8")
     if load and Path(load).exists():
         schedule_saver = FileScheduleSaver(str(load))
@@ -46,6 +65,7 @@ def main(prompt_file: str, load: str | None):
         openai_reasoning_effort="low",
         openai_reasoning_summary="detailed",
     )
+    execute_task = execute_task_maholo if driver == "maholo" else execute_task_dummy
     executor_agent = Agent(
         model,
         model_settings=model_settings,
