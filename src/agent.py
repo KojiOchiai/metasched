@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
@@ -17,10 +17,6 @@ async def execute_task(task_name: str) -> str:
 
 async def main():
     await_list = AwaitList()
-    await await_list.add_task(
-        execution_time=datetime.now() + timedelta(seconds=5),
-        content="Skip. Do nothing at this time.",
-    )
     add_task = get_add_task(await_list)
     model = OpenAIResponsesModel("o3")
     model_settings = OpenAIResponsesModelSettings(
@@ -48,6 +44,8 @@ async def main():
         ),
         tools=[get_get_tasks(await_list), add_task, get_time],
     )
+    result = await scheduler.run("initialize schedule")
+    print(f"[Main] Scheduler initialized: {result.output}")
     await process_tasks_with_agent(await_list, executor, scheduler)
 
 
