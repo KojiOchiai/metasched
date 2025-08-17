@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 
 @dataclass
@@ -10,6 +10,21 @@ class ATask:
     execution_time: datetime
     id: uuid.UUID
     content: str
+
+    def to_dict(self) -> dict:
+        return {
+            "execution_time": self.execution_time.isoformat(),  # datetime → str
+            "id": str(self.id),  # UUID → str
+            "content": self.content,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ATask":
+        return cls(
+            execution_time=datetime.fromisoformat(data["execution_time"]),
+            id=uuid.UUID(data["id"]),
+            content=data["content"],
+        )
 
 
 class AwaitList:
@@ -23,6 +38,20 @@ class AwaitList:
         self.tasks: list[ATask] = []
         # For task notification
         self.condition = asyncio.Condition()
+
+    def to_dict(self) -> dict:
+        """
+        Convert the AwaitList to a dictionary representation.
+        """
+        return {"tasks": [task.to_dict() for task in self.tasks]}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AwaitList":
+        await_list = cls()
+        for task_data in data.get("tasks", []):
+            task = ATask.from_dict(task_data)
+            await_list.tasks.append(task)
+        return await_list
 
     def get_tasks(self) -> list[ATask]:
         """
