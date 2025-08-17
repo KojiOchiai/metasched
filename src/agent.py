@@ -5,7 +5,14 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
 from src.awaitlist import AwaitList
-from src.schedule import get_add_task, get_get_tasks, get_time, process_tasks_with_agent
+from src.schedule import (
+    get_add_task,
+    get_cancel_task,
+    get_get_tasks,
+    get_time,
+    get_update_task,
+    process_tasks_with_agent,
+)
 
 
 async def execute_task(task_name: str) -> str:
@@ -17,7 +24,10 @@ async def execute_task(task_name: str) -> str:
 
 async def main():
     await_list = AwaitList()
+    get_tasks = get_get_tasks(await_list)
     add_task = get_add_task(await_list)
+    update_task = get_update_task(await_list)
+    cancel_task = get_cancel_task(await_list)
     model = OpenAIResponsesModel("o3")
     model_settings = OpenAIResponsesModelSettings(
         openai_reasoning_effort="low",
@@ -35,14 +45,14 @@ async def main():
         "openai:gpt-4o",
         system_prompt=(
             "You are a schedule management assistant (scheduler). \n"
-            'Write remind_message like "execute TaskA. note: this is 3rd execution"'
+            'Write remind_message like "execute TaskA. note: this is 3rd execution".'
+            "Before add new task, check existing tasks by get_tasks to avoid duplication."
+            "finished_time is not known until task is finished."
             "As a scheduling task add tasks following rules. \n"
             "- TaskAの終了時刻から15秒後に次のTaskAをスケジュールしてください"
-            "- Taskの終了までの時間はその時になるまでわかりません"
-            "- 一度入れたスケジュールは削除、修正できないので注意してください。\n"
             "- 5回TaskAを実行してください"
         ),
-        tools=[get_get_tasks(await_list), add_task, get_time],
+        tools=[get_tasks, add_task, update_task, cancel_task, get_time],
     )
     result = await scheduler.run("initialize schedule: run first TaskA after 2 seconds")
     print(f"[Main] Scheduler initialized: {result.output}")
