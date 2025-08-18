@@ -10,6 +10,7 @@ from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModel
 from maholocon.driver import MaholoDriver
 from src.awaitlist import AwaitList
 from src.schedule import FileScheduleSaver, Scheduler
+from src.settings import settings
 
 
 async def execute_task_dummy(task_name: str) -> str:
@@ -19,7 +20,12 @@ async def execute_task_dummy(task_name: str) -> str:
     return f"Executed {task_name} at {datetime.now()}"
 
 
-driver = MaholoDriver()
+driver = MaholoDriver(
+    host=settings.host,
+    port=settings.port,
+    base_path=settings.base_path,
+    microscope_image_dir=settings.microscope_image_dir,
+)
 
 
 async def execute_task_maholo(task_name: str) -> str:

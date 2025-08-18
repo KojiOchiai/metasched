@@ -735,6 +735,7 @@ dependencies = [
     { name = "numpy", marker = "python_full_version >= '3.12'" },
     { name = "opencv-python", marker = "python_full_version >= '3.12'" },
     { name = "pydantic-ai", marker = "python_full_version >= '3.12'" },
+    { name = "pydantic-settings", marker = "python_full_version >= '3.12'" },
     { name = "uvicorn", marker = "python_full_version >= '3.12'" },
 ]
 
@@ -746,6 +747,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "pydantic-ai", specifier = ">=0.7.2" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 
