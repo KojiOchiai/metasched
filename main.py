@@ -114,6 +114,7 @@ def main(prompt_file: str, load: str | None, driver: str):
             scheduler.add_task,
             scheduler.update_task,
             scheduler.cancel_task,
+            scheduler.get_time,
             scheduler.add_time,
         ],
     )
