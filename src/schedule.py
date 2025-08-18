@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from pydantic_ai import Agent
@@ -177,3 +177,13 @@ class Scheduler:
         logger.info(f"[GetTime] Current time: {now}")
         self.saver.save(self)
         return now
+
+    def add_time(self, start: datetime, duration: timedelta) -> datetime:
+        """
+        Add a duration to a start time.
+        """
+        # set timezone
+        start = start.replace(tzinfo=None)
+        end = start + duration
+        logger.info(f"[AddTime] Added {duration} to {start}, new time is {end}")
+        return end
