@@ -117,6 +117,7 @@ class Scheduler:
         """
         Add a new remind_message to the await list.
         """
+        execution_time = execution_time.replace(tzinfo=None)  # Ensure timezone-naive
         task = await self.await_list.add_task(execution_time, remind_message, id)
         logger.info(
             f"[AddTask] Task added: {task.content} at {task.execution_time} with ID: {task.id}"
@@ -130,6 +131,7 @@ class Scheduler:
         """
         Update a task in the await list.
         """
+        execution_time = execution_time.replace(tzinfo=None)  # Ensure timezone-naive
         result = await self.await_list.update_task(
             task_id, execution_time, remind_message
         )
