@@ -100,7 +100,7 @@ class Scheduler:
             )
             finished_at = datetime.now()
             logger.info(
-                f"[ProcessTask] Result for running task {task.id}: {result.output}"
+                f"[ProcessTask] Result for running task {task.id}: {result.output} "
                 f"started_at={started_at}, "
                 f"finished_at={finished_at}"
             )
