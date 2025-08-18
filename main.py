@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -34,6 +35,10 @@ async def amain(scheduler_agent: Agent, executor_agent: Agent, scheduler: Schedu
     if len(scheduler.await_list.tasks) == 0 and len(scheduler.scheduler_history) == 0:
         result = await scheduler_agent.run("start")
         print(f"[Main] Scheduler initialized: {result.output}")
+        schedules = json.dumps(
+            scheduler.await_list.to_dict(), ensure_ascii=False, indent=2
+        )
+        print(f"schedules: \n{schedules}")
     await scheduler.process_tasks_with_agent(executor_agent, scheduler_agent)
 
 

@@ -120,6 +120,11 @@ class Scheduler:
             )
             self.saver.save(self)
 
+            schedules = json.dumps(
+                self.await_list.to_dict(), ensure_ascii=False, indent=2
+            )
+            print(f"schedules: \n{schedules}")
+
     async def add_task(
         self, execution_time: datetime, remind_message: str, id: uuid.UUID | None = None
     ):
