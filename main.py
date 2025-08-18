@@ -11,7 +11,7 @@ from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModel
 from maholocon.driver import MaholoDriver
 from src.awaitlist import AwaitList
 from src.schedule import FileScheduleSaver, Scheduler
-from src.settings import settings
+from src.settings import maholo_settings
 
 # logging setting
 log_dir = Path("logs")
@@ -41,10 +41,10 @@ async def execute_task_dummy(task_name: str) -> str:
 
 
 driver = MaholoDriver(
-    host=settings.host,
-    port=settings.port,
-    base_path=settings.base_path,
-    microscope_image_dir=settings.microscope_image_dir,
+    host=maholo_settings.host,
+    port=maholo_settings.port,
+    base_path=maholo_settings.base_path,
+    microscope_image_dir=maholo_settings.microscope_image_dir,
 )
 
 
