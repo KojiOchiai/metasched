@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -12,11 +13,30 @@ from src.awaitlist import AwaitList
 from src.schedule import FileScheduleSaver, Scheduler
 from src.settings import settings
 
+# logging setting
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+now = datetime.now()
+date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+logfile_name = log_dir / f"metashed_{date_str}.log"
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(logfile_name, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+
+
+logger = logging.getLogger("main")
+logger.setLevel(logging.INFO)
+
 
 async def execute_task_dummy(task_name: str) -> str:
-    print(f"[Task] Executing {task_name} at {datetime.now()}")
+    logger.info(f"[Task] Executing {task_name} at {datetime.now()}")
     await asyncio.sleep(2)  # Simulate task execution time
-    print(f"[Task] Finished {task_name} at {datetime.now()}")
+    logger.info(f"[Task] Finished {task_name} at {datetime.now()}")
     return f"Executed {task_name} at {datetime.now()}"
 
 
@@ -29,9 +49,9 @@ driver = MaholoDriver(
 
 
 async def execute_task_maholo(task_name: str) -> str:
-    print(f"[Maholo Protocol] Executing {task_name} at {datetime.now()}")
+    logger.info(f"[Maholo Protocol] Executing {task_name} at {datetime.now()}")
     result = await driver.run(task_name)
-    print(
+    logger.info(
         f"[Maholo Protocol] Finished {task_name} at {datetime.now()} result: {result}"
     )
     return f"Executed {task_name} at {datetime.now()}"
@@ -40,11 +60,11 @@ async def execute_task_maholo(task_name: str) -> str:
 async def amain(scheduler_agent: Agent, executor_agent: Agent, scheduler: Scheduler):
     if len(scheduler.await_list.tasks) == 0 and len(scheduler.scheduler_history) == 0:
         result = await scheduler_agent.run("start")
-        print(f"[Main] Scheduler initialized: {result.output}")
+        logger.info(f"[Main] Scheduler initialized: {result.output}")
         schedules = json.dumps(
             scheduler.await_list.to_dict(), ensure_ascii=False, indent=2
         )
-        print(f"schedules: \n{schedules}")
+        logger.info(f"schedules: \n{schedules}")
     await scheduler.process_tasks_with_agent(executor_agent, scheduler_agent)
 
 
@@ -85,7 +105,7 @@ def main(prompt_file: str, load: str | None, driver: str):
     )
     base_prompt = Path("src/prompt.md").read_text(encoding="utf-8")
     scheduler_prompt = base_prompt.replace("{{experiment_rule}}", prompt_text)
-    print(f"[Main] Scheduler prompt: \n{scheduler_prompt}")
+    logger.info(f"[Main] Scheduler prompt: \n{scheduler_prompt}")
     scheduler_agent = Agent(
         "openai:gpt-4o",
         system_prompt=scheduler_prompt,

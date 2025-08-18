@@ -12,23 +12,9 @@ from src.awaitlist import AwaitList
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-log_dir = Path("logs")
-log_dir.mkdir(parents=True, exist_ok=True)
-now = datetime.now()
-date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-logfile_name = log_dir / f"schedule_{date_str}.log"
-file_handler = logging.FileHandler(logfile_name, encoding="utf-8")
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
 
 logger = logging.getLogger("schedule")
 logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
 
 
 class ScheduleSaver(ABC):
@@ -123,7 +109,7 @@ class Scheduler:
             schedules = json.dumps(
                 self.await_list.to_dict(), ensure_ascii=False, indent=2
             )
-            print(f"schedules: \n{schedules}")
+            logger.info(f"schedules: \n{schedules}")
 
     async def add_task(
         self, execution_time: datetime, remind_message: str, id: uuid.UUID | None = None
