@@ -8,10 +8,9 @@ import click
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
-from maholocon.driver import MaholoDriver
 from src.awaitlist import AwaitList
+from src.driver import execute_task_dummy, execute_task_maholo
 from src.schedule import FileScheduleSaver, Scheduler
-from src.settings import maholo_settings
 
 # logging setting
 log_dir = Path("logs")
@@ -31,30 +30,6 @@ logging.basicConfig(
 
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
-
-
-async def execute_task_dummy(task_name: str) -> str:
-    logger.info(f"[Task] Executing {task_name} at {datetime.now()}")
-    await asyncio.sleep(2)  # Simulate task execution time
-    logger.info(f"[Task] Finished {task_name} at {datetime.now()}")
-    return f"Executed {task_name} at {datetime.now()}"
-
-
-driver = MaholoDriver(
-    host=maholo_settings.host,
-    port=maholo_settings.port,
-    base_path=maholo_settings.base_path,
-    microscope_image_dir=maholo_settings.microscope_image_dir,
-)
-
-
-async def execute_task_maholo(task_name: str) -> str:
-    logger.info(f"[Maholo Protocol] Executing {task_name} at {datetime.now()}")
-    result = await driver.run(task_name)
-    logger.info(
-        f"[Maholo Protocol] Finished {task_name} at {datetime.now()} result: {result}"
-    )
-    return f"Executed {task_name} at {datetime.now()}"
 
 
 async def amain(scheduler_agent: Agent, executor_agent: Agent, scheduler: Scheduler):
