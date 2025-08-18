@@ -12,7 +12,12 @@ from src.awaitlist import AwaitList
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-file_handler = logging.FileHandler("schedule.log", encoding="utf-8")
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+now = datetime.now()
+date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+logfile_name = log_dir / f"schedule_{date_str}.log"
+file_handler = logging.FileHandler(logfile_name, encoding="utf-8")
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 
