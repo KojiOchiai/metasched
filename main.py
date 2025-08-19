@@ -68,7 +68,7 @@ def main(prompt_file: str, load: str | None, driver: str):
         scheduler = Scheduler(await_list, saver=schedule_saver)
     model = OpenAIResponsesModel("o3")
     model_settings = OpenAIResponsesModelSettings(
-        openai_reasoning_effort="low",
+        openai_reasoning_effort="medium",
         openai_reasoning_summary="detailed",
     )
     execute_task = execute_task_maholo if driver == "maholo" else execute_task_dummy
