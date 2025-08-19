@@ -1,4 +1,0 @@
-- getimageの終了時刻から15秒後に次のgetimageをスケジュールしてください
-- 5回実行したら終了です
-- 最初のタスクはスタートから2秒後に開始してください
-- remind_messageは次のような形式で書いてください: "execute getimage. note: 3rd execution".

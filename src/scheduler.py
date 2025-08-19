@@ -4,11 +4,10 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Awaitable, Callable
 
-from pydantic_ai import Agent
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
-
-from src.awaitlist import AwaitList
+from src.awaitlist import ATask, AwaitList
+from src.protocol import Delay, FromType, Protocol, Start
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -48,68 +47,93 @@ class FileScheduleSaver(ScheduleSaver):
     def save(self, scheduler: "Scheduler") -> None:
         with open(self.directory_path / "awaitlist.json", "w") as f:
             json.dump(scheduler.await_list.to_dict(), f, ensure_ascii=False, indent=2)
-        content = ModelMessagesTypeAdapter.dump_json(
-            scheduler.scheduler_history, indent=2
-        )
-        (self.directory_path / "scheduler_history.json").write_bytes(content)
+        with open(self.directory_path / "schedule.json", "w") as f:
+            json.dump(scheduler.protocol.to_dict(), f, ensure_ascii=False, indent=2)
 
     def load(self) -> "Scheduler":
         with open(self.directory_path / "awaitlist.json", "r") as f:
             data = json.load(f)
         await_list = AwaitList.from_dict(data)
-        history_bytes = (self.directory_path / "scheduler_history.json").read_bytes()
-        scheduler_history = ModelMessagesTypeAdapter.validate_json(history_bytes)
-        return Scheduler(await_list, scheduler_history, self)
+        with open(self.directory_path / "schedule.json", "r") as f:
+            data = json.load(f)
+        protocol = Start.from_dict(data)
+        return Scheduler(protocol, await_list=await_list, saver=self)
 
 
 class Scheduler:
     def __init__(
         self,
-        await_list: AwaitList,
-        scheduler_history: list[ModelMessage] | None = None,
+        protocol: Start,
+        await_list: AwaitList | None = None,
         saver: ScheduleSaver | None = None,
     ):
-        self.await_list = await_list
-        self.scheduler_history: list[ModelMessage] = scheduler_history or []
+        self.protocol = protocol
+        self.await_list = await_list or AwaitList()
         self.saver = saver or MemoryScheduleSaver()
 
-    async def process_tasks_with_agent(self, executor: Agent, scheduler: Agent):
-        async for task in self.await_list.wait_for_next_task():
-            logger.info("====================[ProcessTask]====================")
-            logger.info(
-                f"[ProcessTask] Executing task: {task.content} at {task.execution_time}"
-            )
-            started_at = datetime.now()
-            result = await executor.run(
-                f"Start task: id={task.id}, scheduled_at={task.execution_time}, "
-                f"contents={task.content}"
-            )
-            finished_at = datetime.now()
-            logger.info(
-                f"[ProcessTask] Result for running task {task.id}: {result.output} "
-                f"started_at={started_at}, "
-                f"finished_at={finished_at}"
-            )
-            result = await scheduler.run(
-                (
-                    f"Task finished: id={task.id}, "
-                    f"scheduled_at={task.execution_time}, "
-                    f"started_at={started_at}, "
-                    f"finished_at={finished_at}, "
-                    f"contents={task.content}, result={result.output}"
-                ),
-                message_history=self.scheduler_history,
-            )
-            self.scheduler_history = result.all_messages()
-            logger.info(
-                f"[ProcessTask] Result for after finishing task {task.id}: {result.output}"
-            )
-            self.saver.save(self)
+    async def new_schedules(
+        self,
+        current_node: Protocol | Delay,
+        started_at: datetime,
+        finished_at: datetime,
+    ):
+        # new schedules
+        for node in current_node.post_node:
+            if isinstance(node, Delay):
+                if node.from_type == FromType.START:
+                    scheduled_at = self.add_time(
+                        started_at, node.duration + node.offset
+                    )
+                if node.from_type == FromType.FINISH:
+                    scheduled_at = self.add_time(
+                        finished_at, node.duration + node.offset
+                    )
+                new_protocol: Protocol = node.post_node[0]
+                if new_protocol.name is None:
+                    raise ValueError("Protocol name cannot be None")
+                await self.add_task(scheduled_at, new_protocol.name)
+            elif isinstance(node, Protocol):
+                if node.name is None:
+                    raise ValueError("Protocol name cannot be None")
+                await self.add_task(datetime.now(), node.name)
+        self.saver.save(self)
+        schedules = json.dumps(self.await_list.to_dict(), ensure_ascii=False, indent=2)
+        logger.info(f"schedules: \n{schedules}")
 
-            schedules = json.dumps(
-                self.await_list.to_dict(), ensure_ascii=False, indent=2
-            )
-            logger.info(f"schedules: \n{schedules}")
+    async def process_task(
+        self, executor: Callable[[str], Awaitable[str]], task: ATask
+    ):
+        logger.info("====================[ProcessTask]====================")
+        logger.info(
+            f"[ProcessTask] Executing task: {task.content} at {task.execution_time}"
+        )
+        # get current node
+        current_nodes = [
+            node
+            for node in self.protocol.flatten()
+            if isinstance(node, Protocol) and (node.name == task.content)
+        ]
+        if len(current_nodes) == 0:
+            raise ValueError(f"No protocol found for task: {task.content}")
+        current_node = current_nodes[0]
+
+        # execute
+        protocol_name: str = current_node.name  # type: ignore
+        started_at = datetime.now()
+        result = await executor(protocol_name)
+        finished_at = datetime.now()
+        logger.info(
+            f"[ProcessTask] Result for running task {task.id}: {task.content} "
+            f"result: {result}, "
+            f"started_at={started_at}, "
+            f"finished_at={finished_at}"
+        )
+        await self.new_schedules(current_node, started_at, finished_at)
+
+    async def process_tasks_loop(self, executor: Callable[[str], Awaitable[str]]):
+        await self.new_schedules(self.protocol, datetime.now(), datetime.now())  # type: ignore
+        async for task in self.await_list.wait_for_next_task():
+            await self.process_task(executor, task)
 
     async def add_task(
         self, execution_time: datetime, remind_message: str, id: uuid.UUID | None = None
