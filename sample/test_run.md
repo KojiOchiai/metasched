@@ -1,5 +1,0 @@
-- TaskA="47min回収_中間"とします
-- TaskAを開始直後に実行してください
-- 1回目のTaskAが終わったらfinished_atから30秒後に二回目のTaskAのスケジュールを入れてください
-- 2回実行したら終了してください
-- remind_messageは 'execute "47min回収_中間". note 1st run' という形式で書いてください
