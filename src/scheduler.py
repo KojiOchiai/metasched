@@ -131,7 +131,8 @@ class Scheduler:
         await self.new_schedules(current_node, started_at, finished_at)
 
     async def process_tasks_loop(self, executor: Callable[[str], Awaitable[str]]):
-        await self.new_schedules(self.protocol, datetime.now(), datetime.now())  # type: ignore
+        if len(self.await_list.tasks) == 0:
+            await self.new_schedules(self.protocol, datetime.now(), datetime.now())  # type: ignore
         async for task in self.await_list.wait_for_next_task():
             await self.process_task(executor, task)
 
