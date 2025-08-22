@@ -133,6 +133,11 @@ class Scheduler:
     async def process_tasks_loop(self, executor: Callable[[str], Awaitable[str]]):
         if len(self.await_list.tasks) == 0:
             await self.new_schedules(self.protocol, datetime.now(), datetime.now())  # type: ignore
+        else:
+            schedules = json.dumps(
+                self.await_list.to_dict(), ensure_ascii=False, indent=2
+            )
+            logger.info(f"loaded schedules: \n{schedules}")
         async for task in self.await_list.wait_for_next_task():
             await self.process_task(executor, task)
 
