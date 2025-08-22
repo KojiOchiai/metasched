@@ -73,7 +73,7 @@ class Scheduler:
 
     async def new_schedules(
         self,
-        current_node: Protocol | Delay,
+        current_node: Start | Protocol | Delay,
         started_at: datetime,
         finished_at: datetime,
     ):
