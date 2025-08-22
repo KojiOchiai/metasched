@@ -56,10 +56,11 @@ def main(protocol_file: str, load: str | None, driver: str):
         protocol_file.replace("/", ".").replace(".py", "")
     )
     protocol: Start = protocol_module.start  # type: ignore
-    print(protocol)
+    logger.info(protocol)
     if load and Path(load).exists():
         schedule_saver = FileScheduleSaver(str(load))
         scheduler = schedule_saver.load()
+        scheduler.protocol = protocol
     else:
         schedule_saver = FileScheduleSaver("scheduler_state")
         await_list = AwaitList()
