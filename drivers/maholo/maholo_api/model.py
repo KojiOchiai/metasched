@@ -1,12 +1,12 @@
-from maholocon.maholo_api import schemas
-
 import re
 from itertools import product
+
+from . import schemas
 
 
 def expand_string(pattern):
     """
-    Expands a string pattern containing range specifications of the format `{min..max}` 
+    Expands a string pattern containing range specifications of the format `{min..max}`
     to produce all possible combinations.
 
     Parameters:
@@ -21,24 +21,24 @@ def expand_string(pattern):
      'hoge/p2#4-7', 'hoge/p2#4-8', 'hoge/p2#5-7', 'hoge/p2#5-8',
      'hoge/p3#4-7', 'hoge/p3#4-8', 'hoge/p3#5-7', 'hoge/p3#5-8']
     """
-    
+
     # Use regex to find all range specifications within curly braces
-    matches = re.findall(r'\{(\d+)\.\.(\d+)\}', pattern)
-    
+    matches = re.findall(r"\{(\d+)\.\.(\d+)\}", pattern)
+
     # Generate range expansions for each match found
     expansions = []
     for start, end in matches:
         start, end = int(start), int(end)
         expansions.append([str(i) for i in range(start, end + 1)])
-    
+
     # Create all combinations of expanded ranges
     result = []
     for combo in product(*expansions):
         temp_pattern = pattern
         for value in combo:
-            temp_pattern = re.sub(r'\{\d+\.\.\d+\}', value, temp_pattern, count=1)
+            temp_pattern = re.sub(r"\{\d+\.\.\d+\}", value, temp_pattern, count=1)
         result.append(temp_pattern)
-    
+
     return result
 
 
@@ -46,6 +46,6 @@ class ProtocolModel:
     @property
     def protocols(self) -> list[str]:
         return []
-    
+
     async def hook(self, status: schemas.BioPortalStatus) -> None:
         pass

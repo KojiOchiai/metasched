@@ -23,6 +23,11 @@ offlline実行
 uv run main.py sample/protocol_8plates_fast.py --load scheduler_state
 ```
 
+# simulator server の起動
+```bash
+uv run python drivers/maholo/sim_server.py 
+```
+
 # maholoでの実行
 下の設定を~/.bashrcに追加
 ```bash
