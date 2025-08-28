@@ -8,14 +8,24 @@ from typing import Union
 class Node:
     post_node: list[Union["Protocol", "Delay"]] = field(default_factory=list)
 
-    def __gt__(self, other: Union["Protocol", "Delay"]) -> "Node":
+    def __gt__(
+        self, other: Union["Protocol", "Delay"] | list[Union["Protocol", "Delay"]]
+    ) -> "Node":
+        if not isinstance(other, list):
+            self.add(other)
+        elif isinstance(other, list):
+            for node in other:
+                self.add(node)
+        return self
+
+    def add(self, other: Union["Protocol", "Delay"]) -> "Node":
         if not isinstance(other, Node):
             return NotImplemented
         if isinstance(other, Protocol):
             if other.name in [
-                node.name for node in self.post_node if isinstance(node, Protocol)
+                node.name for node in self.flatten() if isinstance(node, Protocol)
             ]:
-                raise ValueError(f"Protocol {other.name} already exists in post_node")
+                raise ValueError(f"Protocol {other.name} already exists")
         if isinstance(self, Delay):
             if isinstance(other, Delay):
                 raise ValueError("Cannot connect two Delay nodes")
