@@ -2,7 +2,7 @@ import json
 
 import websockets
 
-from maholocon.maholo_api import schemas
+from . import schemas
 
 
 class BioportalClientError(Exception):

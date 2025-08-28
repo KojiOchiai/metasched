@@ -1,6 +1,6 @@
 import asyncio
 
-from maholocon.driver import MaholoDriver
+from drivers.maholo.driver import MaholoDriver
 
 
 async def main():

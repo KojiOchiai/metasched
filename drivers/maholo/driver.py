@@ -1,8 +1,8 @@
 import asyncio
 from pathlib import Path
 
-from maholocon.maholo_api import client, schemas
-from maholocon.maholo_api.client import BioportalClientError
+from .maholo_api import client, schemas
+from .maholo_api.client import BioportalClientError
 
 
 class DriverError(Exception):

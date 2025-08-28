@@ -5,8 +5,8 @@ from pathlib import Path
 import uvicorn
 from cv2 import imwrite
 
-from maholocon.maholo_api import model, schemas, server
-from maholocon.maholo_api.microscope import nikon
+from drivers.maholo.maholo_api import model, schemas, server
+from drivers.maholo.maholo_api.microscope import nikon
 
 WAIT_TIME = 1
 

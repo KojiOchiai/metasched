@@ -4,7 +4,7 @@ from datetime import datetime
 
 import click
 
-from maholocon.driver import MaholoDriver
+from drivers.maholo.driver import MaholoDriver
 from src.settings import maholo_settings
 
 logger = logging.getLogger("driver")

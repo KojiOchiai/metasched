@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
-from maholocon.maholo_api import model, schemas
+from . import model, schemas
 
 logger = logging.getLogger("maholosim")
 logger.setLevel(logging.DEBUG)
