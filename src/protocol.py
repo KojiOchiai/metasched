@@ -3,14 +3,14 @@ from datetime import timedelta
 from enum import Enum
 from typing import Union
 
+NodeType = Union["Protocol", "Delay"]
+
 
 @dataclass
 class Node:
-    post_node: list[Union["Protocol", "Delay"]] = field(default_factory=list)
+    post_node: list[NodeType] = field(default_factory=list)
 
-    def __gt__(
-        self, other: Union["Protocol", "Delay"] | list[Union["Protocol", "Delay"]]
-    ) -> "Node":
+    def __gt__(self, other: NodeType | list[NodeType]) -> "Node":
         if not isinstance(other, list):
             self.add(other)
         elif isinstance(other, list):
