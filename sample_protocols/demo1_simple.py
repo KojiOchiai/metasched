@@ -2,12 +2,8 @@ from datetime import timedelta
 
 from src.protocol import Delay, FromType, Protocol, Start
 
-# Start
-start = Start()
-
-# Relationship
-(
-    start
+start = (
+    Start()
     > Protocol(name="scheduling_1")
     > Protocol(name="scheduling_2")
     > Delay(duration=timedelta(minutes=10), from_type=FromType.FINISH)
