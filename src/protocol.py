@@ -29,12 +29,12 @@ class Node:
             return self.pre_node.top
         return self
 
-    def add(self, other: Union["Protocol", "Delay"]) -> NodeType:
+    def add(self, other: NodeType) -> NodeType:
         if not isinstance(other, Node):
             return NotImplemented
         if isinstance(other, Protocol):
             if other.name in [
-                node.name for node in self.flatten() if isinstance(node, Protocol)
+                node.name for node in self.top.flatten() if isinstance(node, Protocol)
             ]:
                 raise ValueError(f"Protocol {other.name} already exists")
         if isinstance(self, Delay):
