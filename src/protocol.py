@@ -29,7 +29,7 @@ class Node:
             return self.pre_node.top
         return self
 
-    def add(self, other: Union["Protocol", "Delay"]) -> "Node":
+    def add(self, other: Union["Protocol", "Delay"]) -> NodeType:
         if not isinstance(other, Node):
             return NotImplemented
         if isinstance(other, Protocol):
