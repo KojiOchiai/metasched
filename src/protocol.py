@@ -9,13 +9,24 @@ NodeType = Union["Protocol", "Delay"]
 @dataclass
 class Node:
     post_node: list[NodeType] = field(default_factory=list)
+    pre_node: NodeType | None = None
 
-    def __gt__(self, other: NodeType | list[NodeType]) -> "Node":
+    def __post_init__(self):
+        for child in self.post_node:
+            child.pre_node = self
+
+    def __gt__(self, other: NodeType | list[NodeType]) -> NodeType:
         if not isinstance(other, list):
             self.add(other)
         elif isinstance(other, list):
             for node in other:
                 self.add(node)
+        return self.top
+
+    @property
+    def top(self):
+        if self.pre_node:
+            return self.pre_node.top
         return self
 
     def add(self, other: Union["Protocol", "Delay"]) -> "Node":
@@ -30,6 +41,7 @@ class Node:
             if isinstance(other, Delay):
                 raise ValueError("Cannot connect two Delay nodes")
         self.post_node.append(other)
+        other.pre_node = self  # type: ignore
         return other
 
     def to_dict(self):
@@ -44,6 +56,7 @@ class Node:
         return flat
 
 
+@dataclass
 class Start(Node):
     def __str__(self, indent=0):
         base = "Start()"
@@ -169,4 +182,6 @@ if __name__ == "__main__":
     print(s_json)
     print(s_dict)
     print(s)
-    print(Start.from_dict(s_dict))
+    s_recon = Start.from_dict(s_dict)
+    print(s_recon)
+    print(s_recon.post_node[0].post_node[0].top)
