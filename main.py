@@ -40,6 +40,12 @@ async def amain(executor: Callable[[str], Awaitable], scheduler: Scheduler):
 @click.command()
 @click.argument("protocol_file", type=click.Path(exists=True, dir_okay=False))
 @click.option(
+    "--protocolname",
+    type=str,
+    default="start",
+    help="Name of the protocol to use",
+)
+@click.option(
     "--load",
     type=click.Path(),
     default=None,
@@ -51,11 +57,11 @@ async def amain(executor: Callable[[str], Awaitable], scheduler: Scheduler):
     default="dummy",
     help="Driver to use. maholo/dummy (default: dummy)",
 )
-def main(protocol_file: str, load: str | None, driver: str):
+def main(protocol_file: str, protocolname: str, load: str | None, driver: str):
     protocol_module = importlib.import_module(
         protocol_file.replace("/", ".").replace(".py", "")
     )
-    protocol: Start = protocol_module.start  # type: ignore
+    protocol: Start = getattr(protocol_module, protocolname)
     logger.info(protocol)
     if load and Path(load).exists():
         schedule_saver = FileScheduleSaver(str(load))
