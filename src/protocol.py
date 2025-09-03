@@ -9,7 +9,7 @@ NodeType = Union["Protocol", "Delay"]
 @dataclass
 class Node:
     post_node: list[NodeType] = field(default_factory=list)
-    pre_node: NodeType | None = None
+    pre_node: Union[NodeType, "Start", None] = None
 
     def __post_init__(self):
         for child in self.post_node:
@@ -145,6 +145,7 @@ class Protocol(Node):
         nodes = super().to_dict()
         return {
             "name": self.name,
+            "duration": self.duration.total_seconds(),
         } | nodes
 
     @classmethod
@@ -159,6 +160,7 @@ class Protocol(Node):
             nodes.append(node)
         return cls(
             name=name,
+            duration=timedelta(seconds=data.get("duration", 0)),
             post_node=nodes,
         )
 
