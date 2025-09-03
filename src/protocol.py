@@ -132,10 +132,11 @@ class Delay(Node):
 
 @dataclass
 class Protocol(Node):
-    name: str | None = None
+    name: str = field(default="")
+    duration: timedelta = field(default_factory=lambda: timedelta(seconds=0))
 
     def __str__(self, indent=0):
-        base = f"Protocol(name={self.name})"
+        base = f"Protocol(name={self.name}, duration={self.duration})"
         for child in self.post_node:
             base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
         return base
