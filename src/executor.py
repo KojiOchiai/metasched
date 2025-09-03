@@ -12,64 +12,64 @@ from src.protocol import Delay, FromType, Protocol, Start
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
-logger = logging.getLogger("schedule")
+logger = logging.getLogger("executor")
 logger.setLevel(logging.INFO)
 
 
-class ScheduleSaver(ABC):
+class ExecutorSaver(ABC):
     @abstractmethod
-    def save(self, scheduler: "Scheduler") -> None:
+    def save(self, executor: "Executor") -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def load(self) -> "Scheduler":
+    def load(self) -> "Executor":
         raise NotImplementedError()
 
 
-class MemoryScheduleSaver(ScheduleSaver):
+class MemoryExecutorSaver(ExecutorSaver):
     def __init__(self) -> None:
-        self._scheduler_state: "Scheduler" | None = None
+        self._executor_state: "Executor" | None = None
 
-    def save(self, scheduler: "Scheduler") -> None:
-        self._scheduler_state = scheduler
+    def save(self, executor: "Executor") -> None:
+        self._executor_state = executor
 
-    def load(self) -> "Scheduler":
-        if self._scheduler_state is None:
-            raise ValueError("No scheduler state saved.")
-        return self._scheduler_state
+    def load(self) -> "Executor":
+        if self._executor_state is None:
+            raise ValueError("No executor state saved.")
+        return self._executor_state
 
 
-class FileScheduleSaver(ScheduleSaver):
-    def __init__(self, directory_path: str = "scheduler_state") -> None:
+class FileExecutorSaver(ExecutorSaver):
+    def __init__(self, directory_path: str = "executor_state") -> None:
         self.directory_path = Path(directory_path)
         self.directory_path.mkdir(parents=True, exist_ok=True)
 
-    def save(self, scheduler: "Scheduler") -> None:
+    def save(self, executor: "Executor") -> None:
         with open(self.directory_path / "awaitlist.json", "w") as f:
-            json.dump(scheduler.await_list.to_dict(), f, ensure_ascii=False, indent=2)
-        with open(self.directory_path / "schedule.json", "w") as f:
-            json.dump(scheduler.protocol.to_dict(), f, ensure_ascii=False, indent=2)
+            json.dump(executor.await_list.to_dict(), f, ensure_ascii=False, indent=2)
+        with open(self.directory_path / "executor.json", "w") as f:
+            json.dump(executor.protocol.to_dict(), f, ensure_ascii=False, indent=2)
 
-    def load(self) -> "Scheduler":
+    def load(self) -> "Executor":
         with open(self.directory_path / "awaitlist.json", "r") as f:
             data = json.load(f)
         await_list = AwaitList.from_dict(data)
-        with open(self.directory_path / "schedule.json", "r") as f:
+        with open(self.directory_path / "executor.json", "r") as f:
             data = json.load(f)
         protocol = Start.from_dict(data)
-        return Scheduler(protocol, await_list=await_list, saver=self)
+        return Executor(protocol, await_list=await_list, saver=self)
 
 
-class Scheduler:
+class Executor:
     def __init__(
         self,
         protocol: Start,
         await_list: AwaitList | None = None,
-        saver: ScheduleSaver | None = None,
+        saver: ExecutorSaver | None = None,
     ):
         self.protocol = protocol
         self.await_list = await_list or AwaitList()
-        self.saver = saver or MemoryScheduleSaver()
+        self.saver = saver or MemoryExecutorSaver()
 
     async def new_schedules(
         self,
