@@ -3,27 +3,69 @@ from datetime import timedelta
 from src.protocol import Delay, FromType, Protocol, Start
 
 # Protocols
-getimage_1_1 = Protocol(name="getimage_plate6well_Co2Incubator#1#1")
-getimage_1_2 = Protocol(name="getimage_plate6well_Co2Incubator#1#2")
-getimage_1_3 = Protocol(name="getimage_plate6well_Co2Incubator#1#3")
-move_tube_1p5mL_Freezer_24_LifterStocker_12_12 = Protocol(
-    name="move_tube1.5mL_Freezer#24_LifterStocker#12#12"
+getimage_durataion = timedelta(minutes=20)
+getimage_1_1 = Protocol(
+    name="getimage_plate6well_Co2Incubator#1#1", duration=getimage_durataion
 )
-min_0_collection = Protocol(name="0min回収")
-min_5_collection = Protocol(name="5min回収")
-min_15_collection_first_half = Protocol(name="15min回収_前半")
-min_15_collection_second_half = Protocol(name="15min回収_後半")
-min_30_collection_first_half = Protocol(name="30min回収_前半")
-min_30_collection_second_half = Protocol(name="30min回収_後半")
-min_60_collection_first_half = Protocol(name="60min回収_前半")
-min_60_collection_second_half = Protocol(name="60min回収_後半")
-min_90_collection_first_half = Protocol(name="90min回収_前半")
-min_90_collection_second_half = Protocol(name="90min回収_後半")
-min_180_collection_first_half = Protocol(name="180min回収_前半")
-min_180_collection_second_half = Protocol(name="180min回収_後半")
-min_240_collection_first_half = Protocol(name="240min回収_前半")
-min_240_collection_second_half = Protocol(name="240min回収_後半")
-EtOHwash1_LS_4_1 = Protocol(name="EtOHwash1_LS#4#1")
+getimage_1_2 = Protocol(
+    name="getimage_plate6well_Co2Incubator#1#2", duration=getimage_durataion
+)
+getimage_1_3 = Protocol(
+    name="getimage_plate6well_Co2Incubator#1#3", duration=getimage_durataion
+)
+move_tube_1p5mL_Freezer_24_LifterStocker_12_12 = Protocol(
+    name="move_tube1.5mL_Freezer#24_LifterStocker#12#12", duration=timedelta(minutes=10)
+)
+
+first_half_duration = timedelta(minutes=15)
+second_half_duration = timedelta(minutes=15)
+min_0_collection = Protocol(
+    name="0min回収", duration=first_half_duration + second_half_duration
+)
+min_5_collection = Protocol(
+    name="5min回収",
+    duration=first_half_duration + timedelta(minutes=5) + second_half_duration,
+)
+min_15_collection_first_half = Protocol(
+    name="15min回収_前半", duration=first_half_duration
+)
+min_15_collection_second_half = Protocol(
+    name="15min回収_後半", duration=second_half_duration
+)
+min_30_collection_first_half = Protocol(
+    name="30min回収_前半", duration=first_half_duration
+)
+min_30_collection_second_half = Protocol(
+    name="30min回収_後半", duration=second_half_duration
+)
+min_30_collection_second_half = Protocol(
+    name="30min回収_後半", duration=second_half_duration
+)
+min_60_collection_first_half = Protocol(
+    name="60min回収_前半", duration=first_half_duration
+)
+min_60_collection_second_half = Protocol(
+    name="60min回収_後半", duration=second_half_duration
+)
+min_90_collection_first_half = Protocol(
+    name="90min回収_前半", duration=first_half_duration
+)
+min_90_collection_second_half = Protocol(
+    name="90min回収_後半", duration=second_half_duration
+)
+min_180_collection_first_half = Protocol(
+    name="180min回収_前半", duration=first_half_duration
+)
+min_180_collection_second_half = Protocol(
+    name="180min回収_後半", duration=second_half_duration
+)
+min_240_collection_first_half = Protocol(
+    name="240min回収_前半", duration=first_half_duration
+)
+min_240_collection_second_half = Protocol(
+    name="240min回収_後半", duration=second_half_duration
+)
+EtOHwash1_LS_4_1 = Protocol(name="EtOHwash1_LS#4#1", duration=timedelta(minutes=10))
 
 # Delays
 offset = -timedelta(seconds=0)
