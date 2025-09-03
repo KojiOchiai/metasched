@@ -9,8 +9,8 @@ import click
 
 from src.awaitlist import AwaitList
 from src.driver import execute_task_dummy, execute_task_maholo
+from src.executor import Executor, FileExecutorSaver
 from src.protocol import Start
-from src.scheduler import FileScheduleSaver, Scheduler
 
 # logging setting
 log_dir = Path("logs")
@@ -32,9 +32,9 @@ logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
 
-async def amain(executor: Callable[[str], Awaitable], scheduler: Scheduler):
-    logger.info("[Main] Scheduler initialized")
-    await scheduler.process_tasks_loop(executor)
+async def amain(driver: Callable[[str], Awaitable], executor: Executor):
+    logger.info("[Main] Executor initialized")
+    await executor.process_tasks_loop(driver)
 
 
 @click.command()
@@ -49,7 +49,7 @@ async def amain(executor: Callable[[str], Awaitable], scheduler: Scheduler):
     "--load",
     type=click.Path(),
     default=None,
-    help="Load existing scheduler state from file",
+    help="Load existing executor state from file",
 )
 @click.option(
     "--driver",
@@ -64,15 +64,15 @@ def main(protocol_file: str, protocolname: str, load: str | None, driver: str):
     protocol: Start = getattr(protocol_module, protocolname)
     logger.info(protocol)
     if load and Path(load).exists():
-        schedule_saver = FileScheduleSaver(str(load))
-        scheduler = schedule_saver.load()
-        scheduler.protocol = protocol
+        executor_saver = FileExecutorSaver(str(load))
+        executor = executor_saver.load()
+        executor.protocol = protocol
     else:
-        schedule_saver = FileScheduleSaver("scheduler_state")
+        executor_saver = FileExecutorSaver("executor_state")
         await_list = AwaitList()
-        scheduler = Scheduler(protocol, await_list, saver=schedule_saver)
-    executor = execute_task_maholo if driver == "maholo" else execute_task_dummy
-    asyncio.run(amain(executor, scheduler))
+        executor = Executor(protocol, await_list, saver=executor_saver)
+    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
+    asyncio.run(amain(driver_func, executor))
 
 
 if __name__ == "__main__":

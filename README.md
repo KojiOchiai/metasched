@@ -20,7 +20,7 @@ uv sync
 ## 実行コマンド
 offlline実行
 ```bash
-uv run main.py sample/protocol_8plates_fast.py --load scheduler_state
+uv run main.py sample/protocol_8plates_fast.py --load executor_state
 ```
 
 # simulator server の起動
@@ -39,7 +39,7 @@ export MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/path/for/picture # directory path for pi
 
 本番用コマンド
 ```bash
-uv run main.py sample/protocol_8plates_fast.py --load scheduler_state --driver maholo
+uv run main.py sample/protocol_8plates_fast.py --load executor_state --driver maholo
 ```
 
 # Stop
@@ -52,5 +52,5 @@ uv run main.py sample/protocol_8plates_fast.py --load scheduler_state --driver m
 
 ## 残りのスケジュール確認
 ```basy
-cat scheduler_state/awaitlist.json 
+cat executor_state/awaitlist.json 
 ```

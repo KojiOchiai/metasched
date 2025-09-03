@@ -207,6 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 # Temp file
-scheduler_state/
+executor_state/
 nikon_save/
 protocols_sim.txt
