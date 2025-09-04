@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Union
 
@@ -29,7 +29,7 @@ class Node:
             return self.pre_node.top
         return self
 
-    def add(self, other: NodeType) -> NodeType:
+    def add(self, other: NodeType) -> None:
         if not isinstance(other, Node):
             return NotImplemented
         if isinstance(other, Protocol):
@@ -42,7 +42,6 @@ class Node:
                 raise ValueError("Cannot connect two Delay nodes")
         self.post_node.append(other)
         other.pre_node = self  # type: ignore
-        return other
 
     def to_dict(self):
         return {
@@ -148,11 +147,97 @@ class Protocol(Node):
 
     @classmethod
     def from_dict(cls, data: dict):
-        name = data.get("name", None)
+        name = data.get("name")
+        duration = data.get("duration")
+        nodes = super().from_dict(data).post_node
+        if name:
+            name = str(name)
+        else:
+            raise ValueError("Protocol must have a name")
+        if duration is not None and isinstance(duration, (int, float)):
+            duration = float(duration)
+        else:
+            print(type(duration))
+            raise ValueError("Duration must be a number representing seconds")
+        return cls(
+            name=name,
+            duration=timedelta(seconds=duration),
+            post_node=nodes,
+        )
+
+
+@dataclass
+class StartedProtocol(Protocol):
+    scheduled_time: datetime | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+
+    def __str__(self, indent=0):
+        base = (
+            f"StartedProtocol(name={self.name}, duration={self.duration}, "
+            f"scheduled_time={self.scheduled_time}, start_time={self.start_time}, "
+            f"end_time={self.end_time})"
+        )
+        for child in self.post_node:
+            base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
+        return base
+
+    @classmethod
+    def from_node(cls, node: NodeType):
+        if isinstance(node, Protocol):
+            self: StartedProtocol | Delay | Start = cls(
+                name=node.name,
+                duration=node.duration,
+                post_node=node.post_node,
+            )
+        if isinstance(node, Delay):
+            self = node
+        if isinstance(node, Start):
+            self = Start()
+        children = [cls.from_node(child) for child in node.post_node]
+        self.post_node = children
+        return self
+
+    def to_dict(self):
+        nodes = super().to_dict()
+        return {
+            "scheduled_time": self.scheduled_time.isoformat()
+            if self.scheduled_time
+            else None,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+        } | nodes
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        name = data.get("name")
+        scheduled_time = data.get("scheduled_time")
+        start_time = data.get("start_time")
+        end_time = data.get("end_time")
+        duration = data.get("duration")
+        if name:
+            name = str(name)
+        if duration and isinstance(duration, (int, float)):
+            duration = timedelta(seconds=float(duration))
+        if scheduled_time:
+            scheduled_time = datetime.fromisoformat(scheduled_time)
+        else:
+            scheduled_time = None
+        if start_time:
+            start_time = datetime.fromisoformat(start_time)
+        else:
+            start_time = None
+        if end_time:
+            end_time = datetime.fromisoformat(end_time)
+        else:
+            end_time = None
         nodes = super().from_dict(data).post_node
         return cls(
             name=name,
-            duration=timedelta(seconds=data.get("duration", 0)),
+            duration=duration,
+            scheduled_time=scheduled_time,
+            start_time=start_time,
+            end_time=end_time,
             post_node=nodes,
         )
 
@@ -161,7 +246,7 @@ if __name__ == "__main__":
     import json
 
     s = Start()
-    p1 = Protocol(name="P1")
+    p1 = Protocol(name="P1", duration=timedelta(minutes=10))
     p2 = Protocol(name="P2")
     p3 = Protocol(name="P3")
 
@@ -179,4 +264,4 @@ if __name__ == "__main__":
     print(s)
     s_recon = Start.from_dict(s_dict)
     print(s_recon)
-    print(s_recon.post_node[0].post_node[0].top)
+    print(StartedProtocol.from_node(s_recon))
