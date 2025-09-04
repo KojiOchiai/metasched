@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Generic, Optional, Self, TypeVar, Union
+from uuid import UUID, uuid4
 
 PRE_T = TypeVar("PRE_T", bound=Optional["Node"])
 POST_T = TypeVar("POST_T", bound="Node")
@@ -17,11 +18,14 @@ class NodeType(Enum):
 @dataclass
 class Node(Generic[PRE_T, POST_T]):
     node_type: NodeType
+    id: UUID = field(default_factory=uuid4)
     pre_node: Optional[PRE_T] = None
     post_node: list[POST_T] = field(default_factory=list)
 
     def __post_init__(self):
         for child in self.post_node:
+            if self.is_recursive(child):
+                raise ValueError("Cannot add a recursive node")
             child.pre_node = self
 
     def __gt__(self, other: POST_T | list[POST_T]) -> Self:
@@ -32,6 +36,9 @@ class Node(Generic[PRE_T, POST_T]):
                 self.add(node)
         return self.top
 
+    def is_recursive(self, other: Self) -> bool:
+        return other.id in [node.id for node in self.top.flatten()]
+
     @property
     def top(self) -> Self:
         if self.pre_node is not None:
@@ -39,12 +46,15 @@ class Node(Generic[PRE_T, POST_T]):
         return self
 
     def add(self, other: POST_T) -> None:
+        if self.is_recursive(other):
+            raise ValueError("Cannot add a recursive node")
         self.post_node.append(other)
         other.pre_node = self
 
     @abstractmethod
     def to_dict(self):
         return {
+            "id": str(self.id),
             "node_type": self.node_type.value,
             "post_node": [child.to_dict() for child in self.post_node],
         }
@@ -118,16 +128,21 @@ class Delay(Node[Union["Protocol", "Start"], Union["Protocol"]]):
         node_type = data.get("node_type")
         if node_type is None or NodeType(node_type) != NodeType.DELAY:
             raise ValueError("Invalid node_type for Delay node")
+        id = data.get("id")
+        if id is None:
+            raise ValueError("Missing id for Delay node")
+        id = UUID(id)
         duration = data.get("duration")
-        offset = data.get("offset")
-        from_type = data.get("from_type")
         if duration is None:
             raise ValueError("Missing duration for Delay node")
+        offset = data.get("offset")
         if offset is None:
             raise ValueError("Missing offset for Delay node")
+        from_type = data.get("from_type")
         if from_type is None:
             raise ValueError("Missing from_type for Delay node")
         return cls(
+            id=id,
             duration=timedelta(seconds=duration),
             from_type=FromType[from_type],
             offset=timedelta(seconds=offset),
@@ -163,6 +178,7 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
         finished_time = self.finished_time.timestamp() if self.finished_time else None
         return {
             "name": self.name,
+            "id": str(self.id),
             "duration": self.duration.total_seconds(),
             "scheduled_time": scheduled_time,
             "started_time": started_time,
@@ -175,10 +191,14 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
         node_type = data.get("node_type")
         if node_type is None or NodeType(node_type) != NodeType.PROTOCOL:
             raise ValueError("Invalid node_type for Protocol node")
+        id = data.get("id")
+        if id is None:
+            raise ValueError("Missing id for Protocol node")
+        id = UUID(id)
         name = data.get("name")
-        duration = data.get("duration")
         if name is None:
             raise ValueError("Missing name for Protocol node")
+        duration = data.get("duration")
         if duration is None:
             raise ValueError("Missing duration for Protocol node")
         scheduled_time = data.get("scheduled_time")
@@ -192,6 +212,7 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
             finished_time = datetime.fromtimestamp(finished_time)
         return cls(
             name=name,
+            id=id,
             duration=timedelta(seconds=duration),
             scheduled_time=scheduled_time,
             started_time=started_time,
