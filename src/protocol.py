@@ -250,7 +250,7 @@ if __name__ == "__main__":
     p2 = Protocol(name="P2")
     p3 = Protocol(name="P3")
 
-    sec5 = Delay(duration=-timedelta(seconds=5), from_type=FromType.START)
+    sec5 = Delay(duration=timedelta(seconds=5), from_type=FromType.START)
 
     s > p1 > p2
     p1 > sec5 > p3
@@ -264,4 +264,8 @@ if __name__ == "__main__":
     print(s)
     s_recon = Start.from_dict(s_dict)
     print(s_recon)
-    print(StartedProtocol.from_node(s_recon))
+    started_protocol = StartedProtocol.from_node(s_recon)
+    print(started_protocol)
+    started_protocol.post_node[0].start_time = datetime.now()
+    print(started_protocol)
+    print(StartedProtocol.from_dict(started_protocol.to_dict()))
