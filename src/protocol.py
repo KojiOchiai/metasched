@@ -9,11 +9,9 @@ POST_T = TypeVar("POST_T", bound="Node")
 
 
 class NodeType(Enum):
-    PLAN_START = "plan_start"
+    START = "start"
     DELAY = "delay"
     PROTOCOL = "protocol"
-    SCHEDULE_START = "schedule_start"
-    STARTED_PROTOCOL = "started_protocol"
 
 
 @dataclass
@@ -64,29 +62,11 @@ class Node(Generic[PRE_T, POST_T]):
 
 @dataclass
 class Start(Node[None, Union["Protocol", "Delay"]]):
-    node_type: NodeType = field(default=NodeType.PLAN_START)
-
-    def __str__(self, indent=0):
-        base = "Start()"
-        for child in self.post_node:
-            base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
-        return base
-
-    def to_dict(self):
-        return super().to_dict()
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Self:
-        return cls()
-
-
-@dataclass
-class ScheduleStart(Node[None, Union["StartedProtocol", "Delay"]]):
-    node_type: NodeType = field(default=NodeType.SCHEDULE_START)
+    node_type: NodeType = field(default=NodeType.START)
     start_time: datetime | None = None
 
     def __str__(self, indent=0):
-        base = f"Schedule(start_time={self.start_time})"
+        base = f"Start(start_time={self.start_time})"
         for child in self.post_node:
             base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
         return base
@@ -97,8 +77,8 @@ class ScheduleStart(Node[None, Union["StartedProtocol", "Delay"]]):
     @classmethod
     def from_dict(cls, data: dict) -> Self:
         node_type = data.get("node_type")
-        if node_type is None or NodeType(node_type) != NodeType.SCHEDULE_START:
-            raise ValueError("Invalid node_type for ScheduleStart node")
+        if node_type is None or NodeType(node_type) != NodeType.START:
+            raise ValueError("Invalid node_type for Start node")
         start_time = data.get("start_time")
         if start_time is not None:
             start_time = datetime.fromtimestamp(start_time)
@@ -159,17 +139,34 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
     node_type: NodeType = field(default=NodeType.PROTOCOL)
     name: str = field(default="")
     duration: timedelta = field(default_factory=lambda: timedelta(seconds=0))
+    scheduled_time: datetime | None = None
+    started_time: datetime | None = None
+    finished_time: datetime | None = None
 
     def __str__(self, indent=0):
-        base = f"Protocol(name={self.name}, duration={self.duration})"
+        base = (
+            f"Protocol(name={self.name}"
+            f", duration={self.duration}"
+            f", scheduled_time={self.scheduled_time}"
+            f", started_time={self.started_time}"
+            f", finished_time={self.finished_time})"
+        )
         for child in self.post_node:
             base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
         return base
 
     def to_dict(self):
+        scheduled_time = (
+            self.scheduled_time.timestamp() if self.scheduled_time else None
+        )
+        started_time = self.started_time.timestamp() if self.started_time else None
+        finished_time = self.finished_time.timestamp() if self.finished_time else None
         return {
             "name": self.name,
             "duration": self.duration.total_seconds(),
+            "scheduled_time": scheduled_time,
+            "started_time": started_time,
+            "finished_time": finished_time,
             **super().to_dict(),
         }
 
@@ -184,97 +181,22 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
             raise ValueError("Missing name for Protocol node")
         if duration is None:
             raise ValueError("Missing duration for Protocol node")
-        return cls(
-            name=name,
-            duration=timedelta(seconds=duration),
-        )
-
-
-@dataclass
-class StartedProtocol(Protocol):
-    node_type: NodeType = field(default=NodeType.STARTED_PROTOCOL)
-    scheduled_time: datetime | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-
-    def __str__(self, indent=0):
-        base = (
-            f"StartedProtocol(name={self.name}, duration={self.duration}, "
-            f"scheduled_time={self.scheduled_time}, start_time={self.start_time}, "
-            f"end_time={self.end_time})"
-        )
-        for child in self.post_node:
-            base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
-        return base
-
-    def to_dict(self):
-        return {
-            "scheduled_time": self.scheduled_time,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            **super().to_dict(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Self:
-        node_type = data.get("node_type")
-        if node_type is None or NodeType(node_type) != NodeType.STARTED_PROTOCOL:
-            raise ValueError("Invalid node_type for StartedProtocol node")
-        name = data.get("name")
-        duration = data.get("duration")
         scheduled_time = data.get("scheduled_time")
-        start_time = data.get("start_time")
-        end_time = data.get("end_time")
-        if name is None:
-            raise ValueError("Missing name for StartedProtocol node")
-        if duration is None:
-            raise ValueError("Missing duration for StartedProtocol node")
+        started_time = data.get("started_time")
+        finished_time = data.get("finished_time")
         if scheduled_time is not None:
             scheduled_time = datetime.fromtimestamp(scheduled_time)
-        if start_time is not None:
-            start_time = datetime.fromtimestamp(start_time)
-        if end_time is not None:
-            end_time = datetime.fromtimestamp(end_time)
+        if started_time is not None:
+            started_time = datetime.fromtimestamp(started_time)
+        if finished_time is not None:
+            finished_time = datetime.fromtimestamp(finished_time)
         return cls(
             name=name,
             duration=timedelta(seconds=duration),
             scheduled_time=scheduled_time,
-            start_time=start_time,
-            end_time=end_time,
+            started_time=started_time,
+            finished_time=finished_time,
         )
-
-    @classmethod
-    def from_protocol(cls, protocol: "Protocol") -> Self:
-        return cls(
-            name=protocol.name,
-            duration=protocol.duration,
-        )
-
-
-def plan2schedule(
-    node: Union["Start", "Protocol", "Delay"],
-) -> Union["ScheduleStart", "StartedProtocol", "Delay"]:
-    post_nodes = [plan2schedule(p_node) for p_node in node.post_node]
-    current_node: Union["ScheduleStart", "StartedProtocol", "Delay"]
-    if type(node) is Start:
-        current_node = ScheduleStart()
-        for post_node in post_nodes:
-            if not (type(post_node) is StartedProtocol or type(post_node) is Delay):
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    elif type(node) is Protocol:
-        current_node = StartedProtocol.from_protocol(node)
-        for post_node in post_nodes:
-            if not (type(post_node) is StartedProtocol or type(post_node) is Delay):
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    elif type(node) is Delay:
-        current_node = node
-        for post_node in post_nodes:
-            if not (type(post_node) is StartedProtocol or type(post_node) is Delay):
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    return current_node
 
 
 def plan_from_dict(data: dict) -> Start | Delay | Protocol:
@@ -291,8 +213,8 @@ def plan_from_dict(data: dict) -> Start | Delay | Protocol:
     post_nodes = [plan_from_dict(child) for child in post_nodes]
 
     # parse tree
-    current_node: Union[Start, Delay, Protocol, ScheduleStart, StartedProtocol]
-    if node_type == NodeType.PLAN_START:  # start
+    current_node: Union[Start, Delay, Protocol]
+    if node_type == NodeType.START:  # start
         current_node = Start.from_dict(data)
         for post_node in post_nodes:
             if not (type(post_node) is Protocol or type(post_node) is Delay):
@@ -308,46 +230,6 @@ def plan_from_dict(data: dict) -> Start | Delay | Protocol:
         current_node = Protocol.from_dict(data)
         for post_node in post_nodes:
             if not (type(post_node) is Protocol or type(post_node) is Delay):
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    else:
-        raise ValueError(f"Unknown node type: {node_type}")
-    return current_node
-
-
-def schedule_from_dict(
-    data: dict,
-) -> ScheduleStart | Delay | StartedProtocol:
-    # get node_type
-    node_type = data.get("node_type")
-    if node_type is None:
-        raise ValueError("Missing node_type")
-    node_type = NodeType(node_type)
-
-    # get post_node
-    post_nodes = data.get("post_node")
-    if post_nodes is None:
-        raise ValueError("Missing post_node")
-    post_nodes = [schedule_from_dict(child) for child in post_nodes]
-
-    # parse tree
-    current_node: Union[Start, Delay, Protocol, ScheduleStart, StartedProtocol]
-    if node_type == NodeType.SCHEDULE_START:  # schedule
-        current_node = ScheduleStart.from_dict(data)
-        for post_node in post_nodes:
-            if not (type(post_node) is StartedProtocol or type(post_node) is Delay):
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    elif node_type == NodeType.DELAY:  # delay
-        current_node = Delay.from_dict(data)
-        for post_node in post_nodes:
-            if type(post_node) is not Protocol:
-                raise ValueError("Invalid post_node type")
-            current_node.add(post_node)
-    elif node_type == NodeType.STARTED_PROTOCOL:  # started protocol
-        current_node = StartedProtocol.from_dict(data)
-        for post_node in post_nodes:
-            if not (type(post_node) is StartedProtocol or type(post_node) is Delay):
                 raise ValueError("Invalid post_node type")
             current_node.add(post_node)
     else:
@@ -377,8 +259,6 @@ if __name__ == "__main__":
     print(s)
     s_recon = plan_from_dict(s_dict)
     print(s_recon)
-    started_protocol = plan2schedule(s_recon)
-    print(started_protocol)
-    started_protocol.post_node[0].start_time = datetime.now()  # type: ignore
-    print(started_protocol)
-    print(schedule_from_dict(started_protocol.to_dict()))
+    s_recon.post_node[0].started_time = datetime.now()  # type: ignore
+    print(s_recon)
+    print(plan_from_dict(s_recon.to_dict()))
