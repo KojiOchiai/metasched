@@ -49,6 +49,17 @@ class Node:
             "post_node": [child.to_dict() for child in self.post_node],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        post_node = []
+        for node_data in data.get("post_node", []):
+            if "name" in node_data:
+                node = Protocol.from_dict(node_data)
+            else:
+                node = Delay.from_dict(node_data)
+            post_node.append(node)
+        return Node(post_node=post_node)
+
     def flatten(self):
         flat = [self]
         for child in self.post_node:
@@ -66,14 +77,7 @@ class Start(Node):
 
     @classmethod
     def from_dict(cls, data: dict):
-        nodes = []
-        for node in data.get("post_node", []):
-            if "duration" in node:
-                node = Delay.from_dict(node)
-                print(node)
-            elif "name" in node:
-                node = Protocol.from_dict(node)
-            nodes.append(node)
+        nodes = super().from_dict(data).post_node
         return cls(post_node=nodes)
 
 
@@ -105,9 +109,9 @@ class Delay(Node):
 
     @classmethod
     def from_dict(cls, data: dict):
-        duration = data.get("duration", timedelta(seconds=0))
-        from_type = data.get("from_type", FromType.START)
-        offset = data.get("offset", timedelta(seconds=0))
+        duration = data.get("duration")
+        from_type = data.get("from_type")
+        offset = data.get("offset")
         if not isinstance(duration, (int, float)):
             raise ValueError("Duration must be a number representing seconds")
         if not isinstance(offset, (int, float)):
@@ -115,13 +119,7 @@ class Delay(Node):
         duration = timedelta(seconds=duration)
         from_type = FromType(from_type)
         offset = timedelta(seconds=offset)
-        nodes = []
-        for node in data.get("post_node", []):
-            if "duration" in node:
-                node = Delay.from_dict(node)
-            elif "name" in node:
-                node = Protocol.from_dict(node)
-            nodes.append(node)
+        nodes = super().from_dict(data).post_node
         return cls(
             duration=duration,
             from_type=from_type,
@@ -151,13 +149,7 @@ class Protocol(Node):
     @classmethod
     def from_dict(cls, data: dict):
         name = data.get("name", None)
-        nodes = []
-        for node in data.get("post_node", []):
-            if "duration" in node:
-                node = Delay.from_dict(node)
-            elif "name" in node:
-                node = Protocol.from_dict(node)
-            nodes.append(node)
+        nodes = super().from_dict(data).post_node
         return cls(
             name=name,
             duration=timedelta(seconds=data.get("duration", 0)),
