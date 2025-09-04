@@ -30,7 +30,6 @@ class Delay(Node):
 class Protocol(Node):
     name: str
     duration: int
-    wait: int
-    start: cp_model.IntVar | None = None
-    end: cp_model.IntVar | None = None
+    started_at: cp_model.IntVar | None = None
+    finished_at: cp_model.IntVar | None = None
     interval: cp_model.IntervalVar | None = None
