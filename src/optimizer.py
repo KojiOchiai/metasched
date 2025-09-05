@@ -83,6 +83,17 @@ class TimeSecondsConverter:
         return self.start_time + timedelta(seconds=seconds)
 
 
+def optimize_schedule(start: protocol.Start) -> None:
+    span = sum_durations(start.flatten())
+    oldest_time = get_oldest_time(start.flatten())
+    tsc = TimeSecondsConverter(oldest_time)
+    opt_plan = plan_to_opt(start, tsc)
+
+    model = cp_model.CpModel()
+    for node in [node for node in opt_plan.flatten() if isinstance(node, Protocol)]:
+        node.set_vars(model, int(span))
+
+
 if __name__ == "__main__":
     s = protocol.Start()
     p1 = protocol.Protocol(name="P1", duration=timedelta(minutes=10))
