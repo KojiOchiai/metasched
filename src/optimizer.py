@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Generic, TypeVar, Union
 from uuid import UUID
 
 from ortools.sat.python import cp_model
@@ -8,29 +9,38 @@ from src import protocol
 
 model = cp_model.CpModel()
 
+POST_T = TypeVar("POST_T", bound="Node")
+
 
 @dataclass
-class Node:
+class Node(Generic[POST_T]):
     id: UUID
-    post_node: list["Node"]
+    post_node: list[POST_T]
+
+    def flatten(self) -> list[POST_T]:
+        nodes = [self]
+        for child in self.post_node:
+            nodes.extend(child.flatten())
+        return nodes
 
 
 @dataclass
-class Start(Node):
-    start_time: int
+class Start(Node[Union["Protocol", "Delay"]]):
+    pass
 
 
 @dataclass
-class Delay(Node):
+class Delay(Node["Protocol"]):
     duration: int
     from_type: protocol.FromType
     offset: int
 
 
 @dataclass
-class Protocol(Node):
+class Protocol(Node[Union["Protocol", "Delay"]]):
     name: str
     duration: int
+    measured_finished_time: int | None = None
     started_time: cp_model.IntVar | None = None
     finished_time: cp_model.IntVar | None = None
     interval: cp_model.IntervalVar | None = None
@@ -41,6 +51,49 @@ class Protocol(Node):
         self.interval = model.NewIntervalVar(
             self.started_time, self.duration, self.finished_time, f"{self.id}_interval"
         )
+
+
+def plan_to_opt(
+    protocol_node: protocol.Start | protocol.Protocol | protocol.Delay,
+    tsc: "TimeSecondsConverter",
+) -> Start | Delay | Protocol:
+    post_nodes: list[Protocol | Delay] = []
+    for post_node in protocol_node.post_node:
+        if isinstance(post_node, (protocol.Protocol, protocol.Delay)):
+            result = plan_to_opt(post_node, tsc)
+            if isinstance(result, (Protocol, Delay)):
+                post_nodes.append(result)
+        else:
+            raise ValueError("Protocol or Delay expected as post_node")
+
+    if isinstance(protocol_node, protocol.Start):
+        return Start(id=protocol_node.id, post_node=post_nodes)
+    elif isinstance(protocol_node, protocol.Protocol):
+        measured_finish = (
+            int(tsc.time_to_seconds(protocol_node.finished_time))
+            if protocol_node.finished_time
+            else None
+        )
+        return Protocol(
+            id=protocol_node.id,
+            name=protocol_node.name,
+            duration=int(protocol_node.duration.total_seconds()),
+            measured_finished_time=measured_finish,
+            post_node=post_nodes,
+        )
+    elif isinstance(protocol_node, protocol.Delay):
+        for post_opt_node in post_nodes:
+            if not isinstance(post_opt_node, Protocol):
+                raise ValueError("Protocol expected as post_node")
+        return Delay(
+            id=protocol_node.id,
+            duration=int(protocol_node.duration.total_seconds()),
+            from_type=protocol_node.from_type,
+            offset=int(protocol_node.offset.total_seconds()),
+            post_node=[node for node in post_nodes if isinstance(node, Protocol)],
+        )
+    else:
+        raise ValueError(f"Unknown node type: {type(protocol_node)}")
 
 
 def get_oldest_time(
@@ -108,6 +161,7 @@ if __name__ == "__main__":
     p1 > sec5 > p3
 
     p1.started_time = datetime.now()
+    p1.finished_time = p1.started_time + timedelta(minutes=10)
     p2.started_time = datetime.now() + timedelta(minutes=15)
     print(s)
     oldest_time = get_oldest_time(s.flatten())
@@ -118,3 +172,5 @@ if __name__ == "__main__":
     time_in_seconds = tsc.time_to_seconds(p2.started_time)
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
+    print("---- to opt ----")
+    print(plan_to_opt(s, tsc))
