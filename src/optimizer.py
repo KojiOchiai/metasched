@@ -58,7 +58,7 @@ class Delay(Node[Union["Start", "Protocol"], "Protocol"]):
                 diff = post_node.start_time - self.pre_node.finish_time
                 target = self.duration + self.offset
                 model.Add(self.loss >= diff - target)
-                model.Add(self.loss <= diff - target)
+                model.Add(self.loss >= target - diff)
         return self.loss
 
 
@@ -267,11 +267,15 @@ if __name__ == "__main__":
         duration=timedelta(seconds=5), from_type=protocol.FromType.START
     )
 
-    s > p1 > [p2, sec5 > p3]
+    sec4 = protocol.Delay(
+        duration=timedelta(seconds=4), from_type=protocol.FromType.START
+    )
+
+    s > p1 > [sec4 > p2, sec5 > p3]
 
     p1.started_time = datetime.now()
     p1.finished_time = p1.started_time + timedelta(minutes=10, seconds=1)
-    p2.started_time = datetime.now() + timedelta(minutes=10, seconds=2)
+    p2.started_time = p1.finished_time + timedelta(seconds=3)
     print(s)
     oldest_time = get_oldest_time(s.flatten())
     print("oldest time: ", oldest_time)
