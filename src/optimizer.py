@@ -41,15 +41,15 @@ class Protocol(Node[Union["Protocol", "Delay"]]):
     name: str
     duration: int
     measured_finished_time: int | None = None
-    started_time: cp_model.IntVar | None = None
-    finished_time: cp_model.IntVar | None = None
+    start_time: cp_model.IntVar | None = None
+    finish_time: cp_model.IntVar | None = None
     interval: cp_model.IntervalVar | None = None
 
     def set_vars(self, model: cp_model.CpModel, max_time: int) -> None:
-        self.started_time = model.NewIntVar(0, max_time, f"{self.id}_started_time")
-        self.finished_time = model.NewIntVar(0, max_time, f"{self.id}_finished_time")
+        self.start_time = model.NewIntVar(0, max_time, f"{self.id}_start_time")
+        self.finish_time = model.NewIntVar(0, max_time, f"{self.id}_finish_time")
         self.interval = model.NewIntervalVar(
-            self.started_time, self.duration, self.finished_time, f"{self.id}_interval"
+            self.start_time, self.duration, self.finish_time, f"{self.id}_interval"
         )
 
 
