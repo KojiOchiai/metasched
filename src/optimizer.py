@@ -53,14 +53,14 @@ class Protocol(Node[Union["Protocol", "Delay"]]):
         )
 
 
-def plan_to_opt(
+def protocol_to_opt(
     protocol_node: protocol.Start | protocol.Protocol | protocol.Delay,
     tsc: "TimeSecondsConverter",
 ) -> Start | Delay | Protocol:
     post_nodes: list[Protocol | Delay] = []
     for post_node in protocol_node.post_node:
         if isinstance(post_node, (protocol.Protocol, protocol.Delay)):
-            result = plan_to_opt(post_node, tsc)
+            result = protocol_to_opt(post_node, tsc)
             if isinstance(result, (Protocol, Delay)):
                 post_nodes.append(result)
         else:
@@ -140,10 +140,10 @@ def optimize_schedule(start: protocol.Start) -> None:
     span = sum_durations(start.flatten())
     oldest_time = get_oldest_time(start.flatten())
     tsc = TimeSecondsConverter(oldest_time)
-    opt_plan = plan_to_opt(start, tsc)
+    opt_protocol = protocol_to_opt(start, tsc)
 
     model = cp_model.CpModel()
-    for node in [node for node in opt_plan.flatten() if isinstance(node, Protocol)]:
+    for node in [node for node in opt_protocol.flatten() if isinstance(node, Protocol)]:
         node.set_vars(model, int(span))
 
 
@@ -173,4 +173,4 @@ if __name__ == "__main__":
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
-    print(plan_to_opt(s, tsc))
+    print(protocol_to_opt(s, tsc))

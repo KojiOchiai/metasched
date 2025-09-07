@@ -220,7 +220,7 @@ class Protocol(Node[Union["Protocol", "Start", "Delay"], Union["Protocol", "Dela
         )
 
 
-def plan_from_dict(data: dict) -> Start | Delay | Protocol:
+def protocol_from_dict(data: dict) -> Start | Delay | Protocol:
     # get node_type
     node_type = data.get("node_type")
     if node_type is None:
@@ -231,7 +231,7 @@ def plan_from_dict(data: dict) -> Start | Delay | Protocol:
     post_nodes = data.get("post_node")
     if post_nodes is None:
         raise ValueError("Missing post_node")
-    post_nodes = [plan_from_dict(child) for child in post_nodes]
+    post_nodes = [protocol_from_dict(child) for child in post_nodes]
 
     # parse tree
     current_node: Union[Start, Delay, Protocol]
@@ -278,8 +278,8 @@ if __name__ == "__main__":
     print(s_json)
     print(s_dict)
     print(s)
-    s_recon = plan_from_dict(s_dict)
+    s_recon = protocol_from_dict(s_dict)
     print(s_recon)
     s_recon.post_node[0].started_time = datetime.now()  # type: ignore
     print(s_recon)
-    print(plan_from_dict(s_recon.to_dict()))
+    print(protocol_from_dict(s_recon.to_dict()))
