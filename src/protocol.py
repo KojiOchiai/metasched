@@ -69,6 +69,15 @@ class Node(Generic[PRE_T, POST_T]):
             flat.extend(child.flatten())
         return flat
 
+    def get_node(self, id: UUID) -> Optional["Node[PRE_T, POST_T]"]:
+        if self.id == id:
+            return self
+        for child in self.post_node:
+            result = child.get_node(id)
+            if result is not None:
+                return result
+        return None
+
 
 @dataclass
 class Start(Node[None, Union["Protocol", "Delay"]]):
