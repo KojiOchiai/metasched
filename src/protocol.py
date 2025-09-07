@@ -69,7 +69,7 @@ class Node(Generic[PRE_T, POST_T]):
             flat.extend(child.flatten())
         return flat
 
-    def get_node(self, id: UUID) -> Optional["Node[PRE_T, POST_T]"]:
+    def get_node(self, id: UUID):
         if self.id == id:
             return self
         for child in self.post_node:
