@@ -226,6 +226,37 @@ def optimize_schedule(start: protocol.Start) -> None:
         raise ValueError("No optimal schedule found.")
 
 
+def print_schedule(start: protocol.Start) -> None:
+    protocol_nodes: list[protocol.Protocol] = [
+        node for node in start.flatten() if type(node) is protocol.Protocol
+    ]
+    sorted_nodes = sorted(
+        protocol_nodes, key=lambda x: x.scheduled_time or datetime.max
+    )
+
+    for node in sorted_nodes:
+        if node.scheduled_time is not None:
+            state = ""
+            if node.started_time is not None:
+                started_time = node.started_time
+                state = "[Started]"
+            else:
+                started_time = node.scheduled_time
+            if node.finished_time is not None:
+                finished_time = node.finished_time
+                state = "[Done]"
+            else:
+                finished_time = node.scheduled_time + node.duration
+            duration = finished_time - node.scheduled_time
+            print(
+                f" - {node.name}: "
+                f"{started_time.strftime('%Y-%m-%d %H:%M:%S')} ~ "
+                f"{finished_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                f" (Duration: {duration} )"
+                f" {state}"
+            )
+
+
 if __name__ == "__main__":
     s = protocol.Start()
     p1 = protocol.Protocol(name="P1", duration=timedelta(minutes=10))
@@ -252,4 +283,4 @@ if __name__ == "__main__":
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
     optimize_schedule(s)
-    print(s)
+    print_schedule(s)
