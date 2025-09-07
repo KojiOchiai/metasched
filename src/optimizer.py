@@ -17,7 +17,7 @@ class Node(Generic[POST_T]):
     id: UUID
     post_node: list[POST_T]
 
-    def flatten(self) -> list["Node"[POST_T]]:
+    def flatten(self) -> list["Node[POST_T]"]:
         nodes = [self]
         for child in self.post_node:
             nodes.extend(child.flatten())
