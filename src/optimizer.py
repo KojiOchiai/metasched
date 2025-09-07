@@ -58,7 +58,6 @@ class Protocol(Node[Union["Start", "Delay", "Protocol"], Union["Protocol", "Dela
         self.interval = model.NewIntervalVar(
             self.start_time, self.duration, self.finish_time, f"{self.id}_interval"
         )
-        model.Add(self.finish_time == self.start_time + self.duration)
 
 
 def protocol_to_opt(
@@ -218,7 +217,7 @@ def optimize_schedule(start: protocol.Start) -> None:
 if __name__ == "__main__":
     s = protocol.Start()
     p1 = protocol.Protocol(name="P1", duration=timedelta(minutes=10))
-    p2 = protocol.Protocol(name="P2", duration=timedelta(seconds=20))
+    p2 = protocol.Protocol(name="P2", duration=timedelta(seconds=2))
     p3 = protocol.Protocol(name="P3", duration=timedelta(seconds=2))
 
     sec5 = protocol.Delay(
