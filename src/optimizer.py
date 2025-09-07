@@ -40,7 +40,8 @@ class Delay(Node["Protocol"]):
 class Protocol(Node[Union["Protocol", "Delay"]]):
     name: str
     duration: int
-    measured_finished_time: int | None = None
+    started_time: int | None = None
+    finished_time: int | None = None
     start_time: cp_model.IntVar | None = None
     finish_time: cp_model.IntVar | None = None
     interval: cp_model.IntervalVar | None = None
@@ -69,7 +70,12 @@ def protocol_to_opt(
     if isinstance(protocol_node, protocol.Start):
         return Start(id=protocol_node.id, post_node=post_nodes)
     elif isinstance(protocol_node, protocol.Protocol):
-        measured_finish = (
+        started_time = (
+            int(tsc.time_to_seconds(protocol_node.started_time))
+            if protocol_node.started_time
+            else None
+        )
+        finished_time = (
             int(tsc.time_to_seconds(protocol_node.finished_time))
             if protocol_node.finished_time
             else None
@@ -78,7 +84,8 @@ def protocol_to_opt(
             id=protocol_node.id,
             name=protocol_node.name,
             duration=int(protocol_node.duration.total_seconds()),
-            measured_finished_time=measured_finish,
+            started_time=started_time,
+            finished_time=finished_time,
             post_node=post_nodes,
         )
     elif isinstance(protocol_node, protocol.Delay):
