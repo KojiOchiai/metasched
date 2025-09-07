@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Generic, TypeVar, Union
+from typing import Generic, Optional, TypeVar, Union
 from uuid import UUID
 
 from ortools.sat.python import cp_model
@@ -9,15 +9,21 @@ from src import protocol
 
 model = cp_model.CpModel()
 
+PRE_T = TypeVar("PRE_T", bound=Optional["Node"])
 POST_T = TypeVar("POST_T", bound="Node")
 
 
 @dataclass
-class Node(Generic[POST_T]):
+class Node(Generic[PRE_T, POST_T]):
     id: UUID
+    pre_node: Optional[PRE_T]
     post_node: list[POST_T]
 
-    def flatten(self) -> list["Node[POST_T]"]:
+    def __post_init__(self):
+        for post_node in self.post_node:
+            post_node.pre_node = self
+
+    def flatten(self) -> list["Node[PRE_T, POST_T]"]:
         nodes = [self]
         for child in self.post_node:
             nodes.extend(child.flatten())
@@ -25,19 +31,19 @@ class Node(Generic[POST_T]):
 
 
 @dataclass
-class Start(Node[Union["Protocol", "Delay"]]):
+class Start(Node[None, Union["Protocol", "Delay"]]):
     pass
 
 
 @dataclass
-class Delay(Node["Protocol"]):
+class Delay(Node[Union["Start", "Protocol"], "Protocol"]):
     duration: int
     from_type: protocol.FromType
     offset: int
 
 
 @dataclass
-class Protocol(Node[Union["Protocol", "Delay"]]):
+class Protocol(Node[Union["Start", "Delay", "Protocol"], Union["Protocol", "Delay"]]):
     name: str
     duration: int
     started_time: int | None = None
@@ -52,6 +58,7 @@ class Protocol(Node[Union["Protocol", "Delay"]]):
         self.interval = model.NewIntervalVar(
             self.start_time, self.duration, self.finish_time, f"{self.id}_interval"
         )
+        model.Add(self.finish_time == self.start_time + self.duration)
 
 
 def protocol_to_opt(
@@ -68,7 +75,7 @@ def protocol_to_opt(
             raise ValueError("Protocol or Delay expected as post_node")
 
     if isinstance(protocol_node, protocol.Start):
-        return Start(id=protocol_node.id, post_node=post_nodes)
+        return Start(id=protocol_node.id, pre_node=None, post_node=post_nodes)
     elif isinstance(protocol_node, protocol.Protocol):
         started_time = (
             int(tsc.time_to_seconds(protocol_node.started_time))
@@ -86,6 +93,7 @@ def protocol_to_opt(
             duration=int(protocol_node.duration.total_seconds()),
             started_time=started_time,
             finished_time=finished_time,
+            pre_node=None,
             post_node=post_nodes,
         )
     elif isinstance(protocol_node, protocol.Delay):
@@ -97,6 +105,7 @@ def protocol_to_opt(
             duration=int(protocol_node.duration.total_seconds()),
             from_type=protocol_node.from_type,
             offset=int(protocol_node.offset.total_seconds()),
+            pre_node=None,
             post_node=[node for node in post_nodes if isinstance(node, Protocol)],
         )
     else:
@@ -144,28 +153,79 @@ class TimeSecondsConverter:
 
 
 def optimize_schedule(start: protocol.Start) -> None:
-    span = sum_durations(start.flatten())
+    max_time = int(sum_durations(start.flatten()))
     oldest_time = get_oldest_time(start.flatten())
     tsc = TimeSecondsConverter(oldest_time)
     opt_protocol = protocol_to_opt(start, tsc)
 
     model = cp_model.CpModel()
-    for node in [node for node in opt_protocol.flatten() if isinstance(node, Protocol)]:
-        node.set_vars(model, int(span))
+    protocol_nodes = [
+        node for node in opt_protocol.flatten() if isinstance(node, Protocol)
+    ]
+    delay_nodes = [node for node in opt_protocol.flatten() if isinstance(node, Delay)]
+
+    intervals = []
+    makespan = model.NewIntVar(0, max_time, "makespan")
+    for node in protocol_nodes:
+        node.set_vars(model, max_time)
+        # no overlap
+        if node.interval is not None:
+            intervals.append(node.interval)
+        # finish time
+        if node.finish_time is not None:
+            model.Add(makespan >= node.finish_time)
+
+    # order
+    for node in protocol_nodes:
+        for post_node in node.post_node:
+            if isinstance(post_node, Protocol):
+                if node.finish_time is not None and post_node.start_time is not None:
+                    model.Add(node.finish_time <= post_node.start_time)
+
+    # delay
+    for delay in delay_nodes:
+        for post_node in delay.post_node:
+            if isinstance(post_node, Protocol):
+                if (
+                    delay.pre_node is not None
+                    and isinstance(delay.pre_node, Protocol)
+                    and delay.pre_node.finish_time is not None
+                    and post_node.start_time is not None
+                ):
+                    model.Add(
+                        delay.pre_node.finish_time + delay.duration
+                        == post_node.start_time
+                    )
+
+    model.AddNoOverlap(intervals)
+    model.minimize(makespan)
+
+    solver = cp_model.CpSolver()
+    status = solver.Solve(model)
+
+    if status == cp_model.OPTIMAL:
+        print("Optimal schedule found:")
+        for node in protocol_nodes:
+            if node.start_time is not None and node.finish_time is not None:
+                print(
+                    f" - {node.name}: "
+                    f"{solver.Value(node.start_time)} - {solver.Value(node.finish_time)}"
+                )
+    else:
+        print("No optimal schedule found.")
 
 
 if __name__ == "__main__":
     s = protocol.Start()
     p1 = protocol.Protocol(name="P1", duration=timedelta(minutes=10))
-    p2 = protocol.Protocol(name="P2")
-    p3 = protocol.Protocol(name="P3")
+    p2 = protocol.Protocol(name="P2", duration=timedelta(seconds=20))
+    p3 = protocol.Protocol(name="P3", duration=timedelta(seconds=2))
 
     sec5 = protocol.Delay(
         duration=timedelta(seconds=5), from_type=protocol.FromType.START
     )
 
-    s > p1 > p2
-    p1 > sec5 > p3
+    s > p1 > [p2, sec5 > p3]
 
     p1.started_time = datetime.now()
     p1.finished_time = p1.started_time + timedelta(minutes=10)
@@ -180,4 +240,4 @@ if __name__ == "__main__":
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
-    print(protocol_to_opt(s, tsc))
+    optimize_schedule(s)
