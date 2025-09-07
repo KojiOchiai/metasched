@@ -215,15 +215,15 @@ def optimize_schedule(start: protocol.Start) -> None:
     status = solver.Solve(model)
 
     if status == cp_model.OPTIMAL:
-        print("Optimal schedule found:")
         for node in protocol_nodes:
             if node.start_time is not None and node.finish_time is not None:
-                print(
-                    f" - {node.name}: "
-                    f"{solver.Value(node.start_time)} - {solver.Value(node.finish_time)}"
-                )
+                p_node = start.get_node(node.id)
+                if isinstance(p_node, protocol.Protocol):
+                    p_node.scheduled_time = tsc.seconds_to_time(
+                        solver.Value(node.start_time)
+                    )
     else:
-        print("No optimal schedule found.")
+        raise ValueError("No optimal schedule found.")
 
 
 if __name__ == "__main__":
@@ -252,3 +252,4 @@ if __name__ == "__main__":
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
     optimize_schedule(s)
+    print(s)
