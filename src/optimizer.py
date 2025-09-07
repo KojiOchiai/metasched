@@ -239,8 +239,8 @@ if __name__ == "__main__":
     s > p1 > [p2, sec5 > p3]
 
     p1.started_time = datetime.now()
-    p1.finished_time = p1.started_time + timedelta(minutes=10)
-    # p2.started_time = datetime.now() + timedelta(minutes=15)
+    p1.finished_time = p1.started_time + timedelta(minutes=10, seconds=1)
+    p2.started_time = datetime.now() + timedelta(minutes=10, seconds=2)
     print(s)
     oldest_time = get_oldest_time(s.flatten())
     print("oldest time: ", oldest_time)
