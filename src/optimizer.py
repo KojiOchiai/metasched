@@ -40,6 +40,26 @@ class Delay(Node[Union["Start", "Protocol"], "Protocol"]):
     duration: int
     from_type: protocol.FromType
     offset: int
+    loss: cp_model.IntVar | None = None
+
+    def set_loss(
+        self, model: cp_model.CpModel, max_duration_times: int = 2
+    ) -> cp_model.IntVar:
+        self.loss = model.NewIntVar(
+            0, self.duration * max_duration_times, f"{self.id}_loss"
+        )
+        for post_node in self.post_node:
+            if (
+                isinstance(self.pre_node, Protocol)
+                and self.pre_node.finish_time is not None
+                and isinstance(post_node, Protocol)
+                and post_node.start_time is not None
+            ):
+                diff = post_node.start_time - self.pre_node.finish_time
+                target = self.duration + self.offset
+                model.Add(self.loss >= diff - target)
+                model.Add(self.loss <= diff - target)
+        return self.loss
 
 
 @dataclass
@@ -55,6 +75,11 @@ class Protocol(Node[Union["Start", "Delay", "Protocol"], Union["Protocol", "Dela
     def set_vars(self, model: cp_model.CpModel, max_time: int) -> None:
         self.start_time = model.NewIntVar(0, max_time, f"{self.id}_start_time")
         self.finish_time = model.NewIntVar(0, max_time, f"{self.id}_finish_time")
+        if self.started_time is not None:
+            model.Add(self.start_time == self.started_time)
+            if self.finished_time is not None:
+                model.Add(self.finish_time == self.finished_time)
+                return
         self.interval = model.NewIntervalVar(
             self.start_time, self.duration, self.finish_time, f"{self.id}_interval"
         )
@@ -173,6 +198,7 @@ def optimize_schedule(start: protocol.Start) -> None:
         # finish time
         if node.finish_time is not None:
             model.Add(makespan >= node.finish_time)
+    model.AddNoOverlap(intervals)
 
     # order
     for node in protocol_nodes:
@@ -182,23 +208,9 @@ def optimize_schedule(start: protocol.Start) -> None:
                     model.Add(node.finish_time <= post_node.start_time)
 
     # delay
-    for delay in delay_nodes:
-        for post_node in delay.post_node:
-            if isinstance(post_node, Protocol):
-                if (
-                    delay.pre_node is not None
-                    and isinstance(delay.pre_node, Protocol)
-                    and delay.pre_node.finish_time is not None
-                    and post_node.start_time is not None
-                ):
-                    model.Add(
-                        delay.pre_node.finish_time + delay.duration
-                        == post_node.start_time
-                    )
+    losses = [delay.set_loss(model) for delay in delay_nodes]
 
-    model.AddNoOverlap(intervals)
-    model.minimize(makespan)
-
+    model.minimize(makespan + sum(losses))
     solver = cp_model.CpSolver()
     status = solver.Solve(model)
 
@@ -228,14 +240,14 @@ if __name__ == "__main__":
 
     p1.started_time = datetime.now()
     p1.finished_time = p1.started_time + timedelta(minutes=10)
-    p2.started_time = datetime.now() + timedelta(minutes=15)
+    # p2.started_time = datetime.now() + timedelta(minutes=15)
     print(s)
     oldest_time = get_oldest_time(s.flatten())
     print("oldest time: ", oldest_time)
     duration = sum_durations(s.flatten())
     print("total duration: ", duration)
     tsc = TimeSecondsConverter(oldest_time)
-    time_in_seconds = tsc.time_to_seconds(p2.started_time)
+    time_in_seconds = tsc.time_to_seconds(p1.started_time)
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
