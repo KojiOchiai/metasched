@@ -176,7 +176,7 @@ class TimeSecondsConverter:
         return self.start_time + timedelta(seconds=seconds)
 
 
-def optimize_schedule(start: protocol.Start) -> None:
+def optimize_schedule(start: protocol.Start, max_time: int = 5) -> None:
     max_time = int(sum_durations(start.flatten()))
     oldest_time = get_oldest_time(start.flatten())
     tsc = TimeSecondsConverter(oldest_time)
@@ -206,15 +206,29 @@ def optimize_schedule(start: protocol.Start) -> None:
             if isinstance(post_node, Protocol):
                 if node.finish_time is not None and post_node.start_time is not None:
                     model.Add(node.finish_time <= post_node.start_time)
+    for delay in delay_nodes:
+        for post_node in delay.post_node:
+            if (
+                delay.pre_node is None
+                or type(delay.pre_node) is not Protocol
+                or post_node.start_time is None
+            ):
+                continue
+            model.Add(delay.pre_node.finish_time <= post_node.start_time)
 
     # delay
     losses = [delay.set_loss(model) for delay in delay_nodes]
 
-    model.minimize(makespan + sum(losses))
+    model.minimize(makespan + 100 * sum(losses))
     solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max_time
     status = solver.Solve(model)
 
-    if status == cp_model.OPTIMAL:
+    if (
+        status == cp_model.OPTIMAL
+        or status == cp_model.FEASIBLE
+        or status == cp_model.UNKNOWN
+    ):
         for node in protocol_nodes:
             if node.start_time is not None and node.finish_time is not None:
                 p_node = start.get_node(node.id)
@@ -278,22 +292,22 @@ def str_schedule(start: protocol.Start) -> str:
 if __name__ == "__main__":
     s = protocol.Start()
     p1 = protocol.Protocol(name="P1", duration=timedelta(minutes=10))
-    p2 = protocol.Protocol(name="P2", duration=timedelta(seconds=2))
+    p2 = protocol.Protocol(name="P2", duration=timedelta(seconds=3))
     p3 = protocol.Protocol(name="P3", duration=timedelta(seconds=2))
+
+    sec4 = protocol.Delay(
+        duration=timedelta(seconds=1), from_type=protocol.FromType.START
+    )
 
     sec5 = protocol.Delay(
         duration=timedelta(seconds=5), from_type=protocol.FromType.START
-    )
-
-    sec4 = protocol.Delay(
-        duration=timedelta(seconds=4), from_type=protocol.FromType.START
     )
 
     s > p1 > [sec4 > p2, sec5 > p3]
 
     p1.started_time = datetime.now()
     p1.finished_time = p1.started_time + timedelta(minutes=10, seconds=1)
-    p2.started_time = p1.finished_time + timedelta(seconds=3)
+    # p2.started_time = p1.finished_time + timedelta(seconds=3)
     print(s)
     oldest_time = get_oldest_time(s.flatten())
     print("oldest time: ", oldest_time)
