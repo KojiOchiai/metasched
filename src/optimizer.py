@@ -282,6 +282,7 @@ def format_schedule(start: protocol.Start) -> str:
             duration = finished_time - node.scheduled_time
             txt += (
                 f" - {node.name}: "
+                f"[{(started_time - start_time)}] "
                 f"{started_time.strftime('%Y-%m-%d %H:%M:%S')} ~ "
                 f"{finished_time.strftime('%Y-%m-%d %H:%M:%S')}"
                 f" (Duration: {duration} )"
