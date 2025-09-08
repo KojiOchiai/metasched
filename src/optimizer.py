@@ -273,17 +273,26 @@ def format_schedule(start: protocol.Start) -> str:
     delay_nodes: list[protocol.Delay] = [
         node for node in start.flatten() if isinstance(node, protocol.Delay)
     ]
+    txt += "Delay:\n"
     for delay in delay_nodes:
         pre_node = delay.pre_node
         if pre_node is None:
             continue
         for post_node in delay.post_node:
-            if post_node.scheduled_time is None or pre_node.finished_time is None:
+            if post_node.scheduled_time is None:
                 continue
-            true_duration = post_node.scheduled_time - pre_node.finished_time
+            if pre_node.finished_time is not None:
+                pre_node_finish = pre_node.finished_time
+            elif pre_node.scheduled_time is not None:
+                pre_node_finish = pre_node.scheduled_time + pre_node.duration
+            true_duration = post_node.scheduled_time - pre_node_finish
             txt += (
-                f" - {pre_node.name} "
-                f"-- {true_duration}(target: {delay.duration + delay.offset}) -- "
+                f" - {pre_node.name}"
+                " -- "
+                f"{pre_node_finish.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"~ {post_node.scheduled_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                f" | {true_duration}(target: {delay.duration + delay.offset})"
+                " -> "
                 f"{post_node.name}\n"
             )
     return txt
