@@ -225,7 +225,8 @@ def optimize_schedule(start: protocol.Start, max_time: int = 5) -> None:
     # delay
     losses = [delay.set_loss(model) for delay in delay_nodes]
 
-    model.minimize(makespan + 100 * sum(losses))
+    TIME_LOSS_WEIGHT = 100
+    model.minimize(makespan + TIME_LOSS_WEIGHT * sum(losses))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max_time
     status = solver.Solve(model)
