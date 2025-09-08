@@ -182,7 +182,11 @@ class TimeSecondsConverter:
         return self.start_time + timedelta(seconds=seconds)
 
 
-def optimize_schedule(start: protocol.Start, max_time: int = 5) -> None:
+def optimize_schedule(
+    start: protocol.Start,
+    max_time: int = 5,
+    time_loss_weight: int = 100,
+) -> None:
     max_time = int(sum_durations(start.flatten()))
     oldest_time = get_oldest_time(start.flatten())
     tsc = TimeSecondsConverter(oldest_time)
@@ -225,8 +229,7 @@ def optimize_schedule(start: protocol.Start, max_time: int = 5) -> None:
     # delay
     losses = [delay.set_loss(model) for delay in delay_nodes]
 
-    TIME_LOSS_WEIGHT = 100
-    model.minimize(makespan + TIME_LOSS_WEIGHT * sum(losses))
+    model.minimize(makespan + time_loss_weight * sum(losses))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max_time
     status = solver.Solve(model)
