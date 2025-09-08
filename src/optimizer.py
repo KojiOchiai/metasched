@@ -240,7 +240,7 @@ def optimize_schedule(start: protocol.Start, max_time: int = 5) -> None:
         raise ValueError("No optimal schedule found.")
 
 
-def str_schedule(start: protocol.Start) -> str:
+def format_schedule(start: protocol.Start) -> str:
     protocol_nodes: list[protocol.Protocol] = [
         node for node in start.flatten() if type(node) is protocol.Protocol
     ]
@@ -319,4 +319,4 @@ if __name__ == "__main__":
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
     optimize_schedule(s, 30)
-    print(str_schedule(s))
+    print(format_schedule(s))
