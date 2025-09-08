@@ -79,6 +79,12 @@ class Protocol(Node[Union["Start", "Delay", "Protocol"], Union["Protocol", "Dela
             model.Add(self.start_time == self.started_time)
             if self.finished_time is not None:
                 model.Add(self.finish_time == self.finished_time)
+                self.interval = model.NewIntervalVar(
+                    self.start_time,
+                    self.finished_time - self.started_time,
+                    self.finish_time,
+                    f"{self.id}_interval",
+                )
                 return
         self.interval = model.NewIntervalVar(
             self.start_time, self.duration, self.finish_time, f"{self.id}_interval"
