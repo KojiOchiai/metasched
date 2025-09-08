@@ -254,7 +254,14 @@ def format_schedule(start: protocol.Start) -> str:
         protocol_nodes, key=lambda x: x.scheduled_time or datetime.max
     )
 
-    txt = "Schedule:\n"
+    start_time = sorted_nodes[0].scheduled_time
+    finish_time = sorted_nodes[-1].scheduled_time
+    if start_time is not None and finish_time is not None:
+        total_duration = finish_time - start_time
+    else:
+        total_duration = timedelta(0)
+
+    txt = f"Schedule: (total duration: {total_duration})\n"
     for node in sorted_nodes:
         if node.scheduled_time is not None:
             state = ""
