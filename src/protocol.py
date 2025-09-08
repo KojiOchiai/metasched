@@ -112,7 +112,7 @@ class FromType(Enum):
 
 
 @dataclass
-class Delay(Node[Union["Protocol"], Union["Protocol"]]):
+class Delay(Node["Protocol", "Protocol"]):
     node_type: NodeType = field(default=NodeType.DELAY)
     duration: timedelta = field(default_factory=lambda: timedelta(seconds=0))
     from_type: FromType = FromType.START
