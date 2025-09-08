@@ -226,7 +226,7 @@ def optimize_schedule(start: protocol.Start) -> None:
         raise ValueError("No optimal schedule found.")
 
 
-def print_schedule(start: protocol.Start) -> None:
+def str_schedule(start: protocol.Start) -> str:
     protocol_nodes: list[protocol.Protocol] = [
         node for node in start.flatten() if type(node) is protocol.Protocol
     ]
@@ -234,6 +234,7 @@ def print_schedule(start: protocol.Start) -> None:
         protocol_nodes, key=lambda x: x.scheduled_time or datetime.max
     )
 
+    txt = "Schedule:\n"
     for node in sorted_nodes:
         if node.scheduled_time is not None:
             state = ""
@@ -248,13 +249,30 @@ def print_schedule(start: protocol.Start) -> None:
             else:
                 finished_time = node.scheduled_time + node.duration
             duration = finished_time - node.scheduled_time
-            print(
+            txt += (
                 f" - {node.name}: "
                 f"{started_time.strftime('%Y-%m-%d %H:%M:%S')} ~ "
                 f"{finished_time.strftime('%Y-%m-%d %H:%M:%S')}"
                 f" (Duration: {duration} )"
-                f" {state}"
+                f" {state}\n"
             )
+    delay_nodes: list[protocol.Delay] = [
+        node for node in start.flatten() if isinstance(node, protocol.Delay)
+    ]
+    for delay in delay_nodes:
+        pre_node = delay.pre_node
+        if pre_node is None:
+            continue
+        for post_node in delay.post_node:
+            if post_node.scheduled_time is None or pre_node.finished_time is None:
+                continue
+            true_duration = post_node.scheduled_time - pre_node.finished_time
+            txt += (
+                f" - {pre_node.name} "
+                f"-- {true_duration}(target: {delay.duration + delay.offset}) -- "
+                f"{post_node.name}\n"
+            )
+    return txt
 
 
 if __name__ == "__main__":
@@ -286,5 +304,5 @@ if __name__ == "__main__":
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
-    optimize_schedule(s)
-    print_schedule(s)
+    optimize_schedule(s, 30)
+    print(str_schedule(s))
