@@ -92,7 +92,6 @@ delay_240min = Delay(
 start = Start()
 
 # Relationship
-## getimage
 (
     start
     > getimage_1_1
@@ -102,11 +101,19 @@ start = Start()
     > [
         min_0_collection,
         min_5_collection,
-        min_15_collection_first_half > delay_15min > min_15_collection_second_half,  # type: ignore
-        min_30_collection_first_half > delay_30min > min_30_collection_second_half,  # type: ignore
-        min_60_collection_first_half > delay_60min > min_60_collection_second_half,  # type: ignore
-        min_90_collection_first_half > delay_90min > min_90_collection_second_half,  # type: ignore
-        min_180_collection_first_half > delay_180min > min_180_collection_second_half,  # type: ignore
-        min_240_collection_first_half > delay_240min > min_240_collection_second_half,  # type: ignore
+        min_15_collection_first_half,
+        min_30_collection_first_half,
+        min_60_collection_first_half,
+        min_90_collection_first_half,
+        min_180_collection_first_half,
+        min_240_collection_first_half,
     ]
 )
+
+# Time constrain
+min_15_collection_first_half > delay_15min > min_15_collection_second_half
+min_30_collection_first_half > delay_30min > min_30_collection_second_half
+min_60_collection_first_half > delay_60min > min_60_collection_second_half
+min_90_collection_first_half > delay_90min > min_90_collection_second_half
+min_180_collection_first_half > delay_180min > min_180_collection_second_half
+min_240_collection_first_half > delay_240min > min_240_collection_second_half
