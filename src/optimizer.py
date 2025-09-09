@@ -94,11 +94,12 @@ class Protocol(Node[Union["Start", "Delay", "Protocol"], Union["Protocol", "Dela
 def protocol_to_opt(
     protocol_node: protocol.Start | protocol.Protocol | protocol.Delay,
     tsc: "TimeSecondsConverter",
+    buffer_seconds: int,
 ) -> Start | Delay | Protocol:
     post_nodes: list[Protocol | Delay] = []
     for post_node in protocol_node.post_node:
         if isinstance(post_node, (protocol.Protocol, protocol.Delay)):
-            result = protocol_to_opt(post_node, tsc)
+            result = protocol_to_opt(post_node, tsc, buffer_seconds)
             if isinstance(result, (Protocol, Delay)):
                 post_nodes.append(result)
         else:
@@ -120,7 +121,7 @@ def protocol_to_opt(
         return Protocol(
             id=protocol_node.id,
             name=protocol_node.name,
-            duration=int(protocol_node.duration.total_seconds()),
+            duration=int(protocol_node.duration.total_seconds() + buffer_seconds),
             started_time=started_time,
             finished_time=finished_time,
             pre_node=None,
@@ -132,7 +133,7 @@ def protocol_to_opt(
                 raise ValueError("Protocol expected as post_node")
         return Delay(
             id=protocol_node.id,
-            duration=int(protocol_node.duration.total_seconds()),
+            duration=int(protocol_node.duration.total_seconds() - buffer_seconds),
             from_type=protocol_node.from_type,
             offset=int(protocol_node.offset.total_seconds()),
             pre_node=None,
@@ -186,11 +187,12 @@ def optimize_schedule(
     start: protocol.Start,
     max_time: int = 5,
     time_loss_weight: int = 100,
+    buffer_seconds: int = 0,
 ) -> None:
     max_time = int(sum_durations(start.flatten()))
     oldest_time = get_oldest_time(start.flatten())
     tsc = TimeSecondsConverter(oldest_time)
-    opt_protocol = protocol_to_opt(start, tsc)
+    opt_protocol = protocol_to_opt(start, tsc, buffer_seconds)
 
     model = cp_model.CpModel()
     protocol_nodes = [
