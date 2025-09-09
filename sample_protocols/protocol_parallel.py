@@ -17,8 +17,8 @@ move_tube_1p5mL_Freezer_24_LifterStocker_12_12 = Protocol(
     name="move_tube1.5mL_Freezer#24_LifterStocker#12#12", duration=timedelta(minutes=10)
 )
 
-first_half_duration = timedelta(minutes=15)
-second_half_duration = timedelta(minutes=15)
+first_half_duration = timedelta(minutes=14)
+second_half_duration = timedelta(minutes=30)
 min_0_collection = Protocol(
     name="0min回収", duration=first_half_duration + second_half_duration
 )
