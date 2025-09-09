@@ -31,14 +31,20 @@ logger.setLevel(logging.INFO)
     default="start",
     help="Name of the protocol to use",
 )
-def main(protocol_file: str, protocolname: str):
+@click.option(
+    "--buffer",
+    type=int,
+    default=0,
+    help="Buffer time in seconds",
+)
+def main(protocol_file: str, protocolname: str, buffer: int):
     protocol_module = importlib.import_module(
         protocol_file.replace("/", ".").replace(".py", "")
     )
     protocol: Start = getattr(protocol_module, protocolname)
     logger.info(protocol)
     logger.info("Optimizing schedule...")
-    optimize_schedule(protocol)
+    optimize_schedule(protocol, buffer_seconds=buffer)
     print(format_schedule(protocol))
 
 
