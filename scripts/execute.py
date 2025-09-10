@@ -9,7 +9,7 @@ import click
 
 from src.awaitlist import AwaitList
 from src.driver import execute_task_dummy, execute_task_maholo
-from src.executor import Executor, FileExecutorSaver
+from src.executor import Executor
 from src.protocol import Start
 
 # logging setting
@@ -32,9 +32,21 @@ logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
 
-async def amain(driver: Callable[[str], Awaitable], executor: Executor):
+async def aloop(executor: Executor):
     logger.info("[Main] Executor initialized")
-    await executor.process_tasks_loop(driver)
+    await executor.loop()
+
+
+async def amain(protocol_file: str, protocolname: str, load: str | None, driver: str):
+    protocol_module = importlib.import_module(
+        protocol_file.replace("/", ".").replace(".py", "")
+    )
+    protocol: Start = getattr(protocol_module, protocolname)
+    logger.info(protocol)
+    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
+    executor = Executor(driver=driver_func)
+    await executor.add_protocol(protocol)
+    await aloop(executor)
 
 
 @click.command()
@@ -58,21 +70,7 @@ async def amain(driver: Callable[[str], Awaitable], executor: Executor):
     help="Driver to use. maholo/dummy (default: dummy)",
 )
 def main(protocol_file: str, protocolname: str, load: str | None, driver: str):
-    protocol_module = importlib.import_module(
-        protocol_file.replace("/", ".").replace(".py", "")
-    )
-    protocol: Start = getattr(protocol_module, protocolname)
-    logger.info(protocol)
-    if load and Path(load).exists():
-        executor_saver = FileExecutorSaver(str(load))
-        executor = executor_saver.load()
-        executor.protocol = protocol
-    else:
-        executor_saver = FileExecutorSaver("executor_state")
-        await_list = AwaitList()
-        executor = Executor(protocol, await_list, saver=executor_saver)
-    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
-    asyncio.run(amain(driver_func, executor))
+    asyncio.run(amain(protocol_file, protocolname, load, driver))
 
 
 if __name__ == "__main__":

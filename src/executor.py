@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import uuid
@@ -7,6 +8,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 from src.awaitlist import ATask, AwaitList
+from src.optimizer import format_schedule, optimize_schedule
 from src.protocol import Delay, FromType, Protocol, Start
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -16,192 +18,125 @@ logger = logging.getLogger("executor")
 logger.setLevel(logging.INFO)
 
 
-class ExecutorSaver(ABC):
-    @abstractmethod
-    def save(self, executor: "Executor") -> None:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def load(self) -> "Executor":
-        raise NotImplementedError()
-
-
-class MemoryExecutorSaver(ExecutorSaver):
-    def __init__(self) -> None:
-        self._executor_state: "Executor" | None = None
-
-    def save(self, executor: "Executor") -> None:
-        self._executor_state = executor
-
-    def load(self) -> "Executor":
-        if self._executor_state is None:
-            raise ValueError("No executor state saved.")
-        return self._executor_state
-
-
-class FileExecutorSaver(ExecutorSaver):
-    def __init__(self, directory_path: str = "executor_state") -> None:
-        self.directory_path = Path(directory_path)
-        self.directory_path.mkdir(parents=True, exist_ok=True)
-
-    def save(self, executor: "Executor") -> None:
-        with open(self.directory_path / "awaitlist.json", "w") as f:
-            json.dump(executor.await_list.to_dict(), f, ensure_ascii=False, indent=2)
-        with open(self.directory_path / "executor.json", "w") as f:
-            json.dump(executor.protocol.to_dict(), f, ensure_ascii=False, indent=2)
-
-    def load(self) -> "Executor":
-        with open(self.directory_path / "awaitlist.json", "r") as f:
-            data = json.load(f)
-        await_list = AwaitList.from_dict(data)
-        with open(self.directory_path / "executor.json", "r") as f:
-            data = json.load(f)
-        protocol = Start.from_dict(data)
-        return Executor(protocol, await_list=await_list, saver=self)
-
-
 class Executor:
-    def __init__(
-        self,
-        protocol: Start,
-        await_list: AwaitList | None = None,
-        saver: ExecutorSaver | None = None,
-    ):
-        self.protocol = protocol
-        self.await_list = await_list or AwaitList()
-        self.saver = saver or MemoryExecutorSaver()
+    def __init__(self, driver: Callable[[str], Awaitable[str]]) -> None:
+        self.await_list = AwaitList()
+        self.protocols: list[Start] = []
+        self.driver: Callable[[str], Awaitable[str]] = driver
 
-    async def new_schedules(
-        self,
-        current_node: Start | Protocol | Delay,
-        started_at: datetime,
-        finished_at: datetime,
-    ):
-        # new schedules
-        for node in current_node.post_node:
-            if isinstance(node, Delay):
-                if node.from_type == FromType.START:
-                    scheduled_at = self.add_time(
-                        started_at, node.duration + node.offset
-                    )
-                if node.from_type == FromType.FINISH:
-                    scheduled_at = self.add_time(
-                        finished_at, node.duration + node.offset
-                    )
-                new_protocol: Protocol = node.post_node[0]
-                if new_protocol.name is None:
-                    raise ValueError("Protocol name cannot be None")
-                await self.add_task(scheduled_at, new_protocol.name)
-            elif isinstance(node, Protocol):
-                if node.name is None:
-                    raise ValueError("Protocol name cannot be None")
-                await self.add_task(datetime.now(), node.name)
-        self.saver.save(self)
-        schedules = json.dumps(self.await_list.to_dict(), ensure_ascii=False, indent=2)
-        logger.info(f"schedules: \n{schedules}")
+    async def add_protocol(self, protocol: Start) -> Start:
+        # check duplicate
+        ids = [p.id for p in self.protocols]
+        if protocol.id in ids:
+            raise ValueError("Protocol with the same ID already exists")
+        self.protocols.append(protocol)
+        await self.optimize()
+        return protocol
 
-    async def process_task(
-        self, executor: Callable[[str], Awaitable[str]], task: ATask
-    ):
-        logger.info("====================[ProcessTask]====================")
+    async def optimize(self, buffer_seconds: int = 0) -> None:
         logger.info(
-            f"[ProcessTask] Executing task: {task.content} at {task.execution_time}"
+            json.dumps(
+                {
+                    "type": "Optimize",
+                    "buffer_seconds": buffer_seconds,
+                }
+            )
+        )
+        # optimize all protocol
+        marged_protocol = Start()
+        for starts in self.protocols:
+            marged_protocol > starts.post_node
+        optimize_schedule(marged_protocol, buffer_seconds=buffer_seconds)
+
+        # cancel all tasks in await list
+        tasks = self.await_list.get_tasks()
+        for task in tasks:
+            await self.await_list.cancel_task(task.id)
+
+        # get next task
+        all_protocol: list[Protocol] = [
+            p for p in marged_protocol.flatten() if type(p) is Protocol
+        ]
+        protocols = [p for p in all_protocol if p.started_time is None]
+        next_protocol = min(protocols, key=lambda x: x.scheduled_time or datetime.max)
+
+        # add tasks to await list
+        if next_protocol.scheduled_time is None:
+            raise ValueError("Next protocol has no scheduled time")
+        await self.await_list.add_task(
+            execution_time=next_protocol.scheduled_time, content=str(next_protocol.id)
+        )
+
+    async def process_task(self, task: ATask):
+        logger.info(
+            json.dumps(
+                {
+                    "type": "ProcessTask",
+                    "protocol_id": str(task.id),
+                    "task_execution_time": task.execution_time.isoformat(),
+                }
+            )
         )
         # get current node
+        all_protocols: list[Protocol] = sum([p.flatten() for p in self.protocols], [])
+        all_protocols = [node for node in all_protocols if type(node) is Protocol]
         current_nodes = [
-            node
-            for node in self.protocol.flatten()
-            if isinstance(node, Protocol) and (node.name == task.content)
+            node for node in all_protocols if node.id == uuid.UUID(task.content)
         ]
         if len(current_nodes) == 0:
             raise ValueError(f"No protocol found for task: {task.content}")
-        current_node = current_nodes[0]
+        current_protocol = current_nodes[0]
 
         # execute
-        protocol_name: str = current_node.name  # type: ignore
-        started_at = datetime.now()
-        result = await executor(protocol_name)
-        finished_at = datetime.now()
+        protocol_name: str = current_protocol.name
+        current_protocol.started_time = datetime.now()
+        result = await self.driver(protocol_name)
+        current_protocol.finished_time = datetime.now()
         logger.info(
-            f"[ProcessTask] Result for running task {task.id}: {task.content} "
-            f"result: {result}, "
-            f"started_at={started_at}, "
-            f"finished_at={finished_at}"
-        )
-        await self.new_schedules(current_node, started_at, finished_at)
-
-    async def process_tasks_loop(self, executor: Callable[[str], Awaitable[str]]):
-        if len(self.await_list.tasks) == 0:
-            await self.new_schedules(self.protocol, datetime.now(), datetime.now())  # type: ignore
-        else:
-            schedules = json.dumps(
-                self.await_list.to_dict(), ensure_ascii=False, indent=2
+            json.dumps(
+                {
+                    "type": "ProcessTask",
+                    "task_id": str(task.id),
+                    "task_content": task.content,
+                    "task_execution_time": task.execution_time.isoformat(),
+                    "protocol_name": protocol_name,
+                    "result": result,
+                    "protocol_started_time": current_protocol.started_time.isoformat(),
+                    "protocol_finished_time": current_protocol.finished_time.isoformat(),
+                }
             )
-            logger.info(f"loaded schedules: \n{schedules}")
+        )
+        await self.optimize()
+
+    async def loop(self) -> None:
         async for task in self.await_list.wait_for_next_task():
-            await self.process_task(executor, task)
+            await self.process_task(task)
 
-    async def add_task(
-        self, execution_time: datetime, remind_message: str, id: uuid.UUID | None = None
-    ):
-        """
-        Add a new remind_message to the await list.
-        """
-        execution_time = execution_time.replace(tzinfo=None)  # Ensure timezone-naive
-        task = await self.await_list.add_task(execution_time, remind_message, id)
-        logger.info(
-            f"[AddTask] Task added: {task.content} at {task.execution_time} with ID: {task.id}"
-        )
-        self.saver.save(self)
-        return task
 
-    async def update_task(
-        self, task_id: uuid.UUID, execution_time: datetime, remind_message: str
-    ) -> bool:
-        """
-        Update a task in the await list.
-        """
-        execution_time = execution_time.replace(tzinfo=None)  # Ensure timezone-naive
-        result = await self.await_list.update_task(
-            task_id, execution_time, remind_message
-        )
-        logger.info(f"[UpdateTask] Result for updating task {task_id}: {result}")
-        self.saver.save(self)
-        return result
+async def main() -> None:
+    from src.driver import execute_task_dummy
 
-    async def cancel_task(self, task_id: uuid.UUID) -> bool:
-        """
-        Cancel a task in the await list.
-        """
-        result = await self.await_list.cancel_task(task_id)
-        logger.info(f"[CancelTask] Result for cancelling task {task_id}: {result}")
-        self.saver.save(self)
-        return result
+    s1 = Start()
+    p1 = Protocol(name="P1", duration=timedelta(minutes=10))
+    p2 = Protocol(name="P2", duration=timedelta(seconds=3))
+    p3 = Protocol(name="P3", duration=timedelta(seconds=2))
+    sec4 = Delay(duration=timedelta(seconds=4), from_type=FromType.START)
+    sec5 = Delay(duration=timedelta(seconds=5), from_type=FromType.START)
+    s1 > p1 > [sec4 > p2, sec5 > p3]
 
-    async def get_tasks(self):
-        """
-        Get the list of all tasks.
-        """
-        tasks = self.await_list.get_tasks()
-        logger.info("[GetTasks] Get current tasks")
-        self.saver.save(self)
-        return tasks
+    s2 = Start()
+    p1 = Protocol(name="P1", duration=timedelta(minutes=10))
+    p2 = Protocol(name="P2", duration=timedelta(seconds=3))
+    p3 = Protocol(name="P3", duration=timedelta(seconds=2))
+    sec5 = Delay(duration=timedelta(seconds=5), from_type=FromType.START)
+    s2 > p1 > [p2, sec5 > p3]
 
-    def get_time(self) -> datetime:
-        """
-        Get the current time.
-        """
-        now = datetime.now()
-        logger.info(f"[GetTime] Current time: {now}")
-        self.saver.save(self)
-        return now
+    executor = Executor(driver=execute_task_dummy)
+    await executor.add_protocol(s1)
+    await executor.add_protocol(s2)
+    print(format_schedule(s1))
+    print(format_schedule(s2))
 
-    def add_time(self, start: datetime, duration: timedelta) -> datetime:
-        """
-        Add a duration to a start time.
-        """
-        # set timezone
-        start = start.replace(tzinfo=None)
-        end = start + duration
-        logger.info(f"[AddTime] Added {duration} to {start}, new time is {end}")
-        return end
+
+if __name__ == "__main__":
+    asyncio.run(main())
