@@ -188,12 +188,8 @@ def main():
     refill_spread = model.NewIntVar(0, horizon, "refill_spread")
     model.Add(refill_spread == refill_latest - refill_earliest)
 
-    # 使用されるチューブの数を計算
-    used_tube_count = model.NewIntVar(0, len(all_tubes), "used_tube_count")
-    model.Add(used_tube_count == sum(tube_is_used.values()))
-
     # 目的関数：使用チューブ数、spread、makespan の重み付き最小化
-    model.Minimize(used_tube_count * 100 + refill_spread * 2 + makespan)
+    model.Minimize(refill_spread * 2 + makespan)
 
     # ソルバー
     solver = cp_model.CpSolver()
@@ -201,10 +197,11 @@ def main():
     status = solver.Solve(model)
 
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        used_tube_count = sum(solver.Value(tube_is_used[tube]) for tube in all_tubes)
         print(f"Status: {solver.StatusName(status)}")
         print(f"Makespan: {solver.Value(makespan)}")
         print(f"Refill spread: {solver.Value(refill_spread)}")
-        print(f"使用チューブ数: {solver.Value(used_tube_count)}")
+        print(f"使用チューブ数: {used_tube_count}")
 
         print("\n補充スケジュール:")
         for tube in all_tubes:
