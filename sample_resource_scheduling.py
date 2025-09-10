@@ -124,7 +124,7 @@ def main():
         for tube in task_possible_tubes[t]:
             active_task_intervals.append(task_intervals[t][tube])
 
-    # チューブ容量制約
+    # チューブ容量より多くはつかえない制約
     for tube in all_tubes:
         demand_sum = []
         for t in all_tasks:
