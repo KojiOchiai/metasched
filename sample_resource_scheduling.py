@@ -8,22 +8,28 @@ def main():
         "T2": {"dur": 4, "reagent": "A", "demand": 2},
         "T3": {"dur": 6, "reagent": "B", "demand": 2},
         "T4": {"dur": 3, "reagent": "A", "demand": 2},
-        "T5": {"dur": 4, "reagent": "B", "demand": 1},
+        "T5": {"dur": 3, "reagent": "A", "demand": 2},
+        "T6": {"dur": 3, "reagent": "A", "demand": 2},
+        "T7": {"dur": 3, "reagent": "A", "demand": 2},
+        "T8": {"dur": 3, "reagent": "A", "demand": 2},
+        "T9": {"dur": 4, "reagent": "B", "demand": 1},
+        "T10": {"dur": 4, "reagent": "B", "demand": 1},
     }
 
     Tubes = {
-        "RA1": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RA2": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RA3": {"dur": 2, "reagent": "A", "capacity": 5},
+        "RA1": {"dur": 2, "reagent": "A", "capacity": 3},
+        "RA2": {"dur": 2, "reagent": "A", "capacity": 4},
+        "RA3": {"dur": 2, "reagent": "A", "capacity": 4},
         "RA4": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RA5": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RA6": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RA7": {"dur": 2, "reagent": "A", "capacity": 5},
-        "RB1": {"dur": 2, "reagent": "B", "capacity": 3},
-        "RB2": {"dur": 2, "reagent": "B", "capacity": 3},
+        # "RA5": {"dur": 2, "reagent": "A", "capacity": 5},
+        # "RA6": {"dur": 2, "reagent": "A", "capacity": 5},
+        # "RA7": {"dur": 2, "reagent": "A", "capacity": 5},
+        "RB1": {"dur": 2, "reagent": "B", "capacity": 5},
+        "RB2": {"dur": 2, "reagent": "B", "capacity": 5},
+        # "RB3": {"dur": 2, "reagent": "B", "capacity": 3},
     }
 
-    slot_capacity = 2
+    slot_capacity = 4
 
     model = cp_model.CpModel()
     horizon = 500  # 十分な時間範囲
@@ -188,27 +194,30 @@ def main():
     refill_spread = model.NewIntVar(0, horizon, "refill_spread")
     model.Add(refill_spread == refill_latest - refill_earliest)
 
+    # 使用チューブ数
+    used_tube_count = model.NewIntVar(0, len(all_tubes), "used_tube_count")
+    model.Add(used_tube_count == sum(tube_is_used[tube] for tube in all_tubes))
+
     # 目的関数：使用チューブ数、spread、makespan の重み付き最小化
-    model.Minimize(refill_spread * 2 + makespan)
+    model.Minimize(used_tube_count + refill_spread * 20 + makespan)
 
     # ソルバー
     solver = cp_model.CpSolver()
-    # solver.parameters.max_time_in_seconds = 10.0
+    solver.parameters.max_time_in_seconds = 3.0
     status = solver.Solve(model)
 
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        used_tube_count = sum(solver.Value(tube_is_used[tube]) for tube in all_tubes)
         print(f"Status: {solver.StatusName(status)}")
         print(f"Makespan: {solver.Value(makespan)}")
         print(f"Refill spread: {solver.Value(refill_spread)}")
-        print(f"使用チューブ数: {used_tube_count}")
+        print(f"使用チューブ数: {solver.Value(used_tube_count)}")
 
         print("\n補充スケジュール:")
         for tube in all_tubes:
             if solver.Value(tube_is_used[tube]):
                 s = solver.Value(tube_start[tube])
                 e = solver.Value(tube_end[tube])
-                print(f"  {tube}: start={s}, end={e}")
+                print(f"  {tube}: {s} ~ {e}")
             else:
                 print(f"  {tube}: 使用なし")
 
@@ -225,7 +234,7 @@ def main():
         # 開始時間でソート
         task_info.sort(key=lambda x: x[2])
         for t, tube, s, e in task_info:
-            print(f"  {t} → {tube}: start={s}, end={e}, duration={e - s}")
+            print(f"  {t} → {tube}: {s} ~ {e}, duration={e - s}")
     else:
         print("解が見つかりませんでした")
 
