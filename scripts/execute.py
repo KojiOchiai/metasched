@@ -1,39 +1,22 @@
 import asyncio
 import importlib
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Awaitable, Callable
 
 import click
 
-from src.awaitlist import AwaitList
 from src.driver import execute_task_dummy, execute_task_maholo
 from src.executor import Executor
+from src.logging_config import setup_logging
 from src.protocol import Start
 
 # logging setting
-log_dir = Path("logs")
-log_dir.mkdir(parents=True, exist_ok=True)
-now = datetime.now()
-date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-logfile_name = log_dir / f"metashed_{date_str}.log"
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(logfile_name, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
-
-
+setup_logging()
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
 
 async def aloop(executor: Executor):
-    logger.info("[Main] Executor initialized")
+    logger.info({"message": "Executor initialized"})
     await executor.loop()
 
 
@@ -42,7 +25,7 @@ async def amain(protocol_file: str, protocolname: str, load: str | None, driver:
         protocol_file.replace("/", ".").replace(".py", "")
     )
     protocol: Start = getattr(protocol_module, protocolname)
-    logger.info(protocol)
+    print(protocol)
     driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
     executor = Executor(driver=driver_func)
     await executor.add_protocol(protocol)

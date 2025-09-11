@@ -1,10 +1,7 @@
 import asyncio
-import json
 import logging
 import uuid
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Awaitable, Callable
 
 from src.awaitlist import ATask, AwaitList
@@ -34,14 +31,7 @@ class Executor:
         return protocol
 
     async def optimize(self, buffer_seconds: int = 0) -> None:
-        logger.info(
-            json.dumps(
-                {
-                    "type": "Optimize",
-                    "buffer_seconds": buffer_seconds,
-                }
-            )
-        )
+        logger.info({"function": "optimize", "buffer_seconds": buffer_seconds})
         # optimize all protocol
         marged_protocol = Start()
         for starts in self.protocols:
@@ -66,16 +56,22 @@ class Executor:
         await self.await_list.add_task(
             execution_time=next_protocol.scheduled_time, content=str(next_protocol.id)
         )
+        logger.info(
+            {
+                "function": "optimize",
+                "next_protocol_id": str(next_protocol.id),
+                "next_protocol_name": next_protocol.name,
+                "next_protocol_scheduled_time": next_protocol.scheduled_time.isoformat(),
+            }
+        )
 
     async def process_task(self, task: ATask):
         logger.info(
-            json.dumps(
-                {
-                    "type": "ProcessTask",
-                    "protocol_id": str(task.id),
-                    "task_execution_time": task.execution_time.isoformat(),
-                }
-            )
+            {
+                "function": "process_task",
+                "protocol_id": str(task.id),
+                "task_execution_time": task.execution_time.isoformat(),
+            }
         )
         # get current node
         all_protocols: list[Protocol] = sum([p.flatten() for p in self.protocols], [])
@@ -93,18 +89,15 @@ class Executor:
         result = await self.driver(protocol_name)
         current_protocol.finished_time = datetime.now()
         logger.info(
-            json.dumps(
-                {
-                    "type": "ProcessTask",
-                    "task_id": str(task.id),
-                    "task_content": task.content,
-                    "task_execution_time": task.execution_time.isoformat(),
-                    "protocol_name": protocol_name,
-                    "result": result,
-                    "protocol_started_time": current_protocol.started_time.isoformat(),
-                    "protocol_finished_time": current_protocol.finished_time.isoformat(),
-                }
-            )
+            {
+                "function": "process_task",
+                "task_content": task.content,
+                "task_execution_time": task.execution_time.isoformat(),
+                "protocol_name": protocol_name,
+                "result": result,
+                "protocol_started_time": current_protocol.started_time.isoformat(),
+                "protocol_finished_time": current_protocol.finished_time.isoformat(),
+            }
         )
         await self.optimize()
 
