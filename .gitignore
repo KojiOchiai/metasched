@@ -209,4 +209,5 @@ __marimo__/
 # Temp file
 executor_state/
 nikon_save/
+payloads/
 protocols_sim.txt
