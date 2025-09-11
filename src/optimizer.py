@@ -12,6 +12,14 @@ model = cp_model.CpModel()
 PRE_T = TypeVar("PRE_T", bound=Optional["Node"])
 POST_T = TypeVar("POST_T", bound="Node")
 
+STATUS_STR = {
+    cp_model.OPTIMAL: "OPTIMAL",
+    cp_model.FEASIBLE: "FEASIBLE",
+    cp_model.INFEASIBLE: "INFEASIBLE",
+    cp_model.MODEL_INVALID: "MODEL_INVALID",
+    cp_model.UNKNOWN: "UNKNOWN",
+}
+
 
 @dataclass
 class Node(Generic[PRE_T, POST_T]):
@@ -189,11 +197,17 @@ class TimeSecondsConverter:
 
 
 class Optimizer:
-    def __init__(self, buffer_seconds: int = 0, time_loss_weight: int = 100) -> None:
+    def __init__(
+        self,
+        buffer_seconds: int = 0,
+        time_loss_weight: int = 100,
+        max_solve_time: int = 3,
+    ) -> None:
         self.buffer_seconds = buffer_seconds
         self.time_loss_weight = time_loss_weight
+        self.max_solve_time = max_solve_time
 
-    def optimize_schedule(self, start: protocol.Start) -> None:
+    def optimize_schedule(self, start: protocol.Start) -> str:
         nodes = start.flatten()
         max_time = (
             int(sum_durations(start.flatten())) + len(nodes) * self.buffer_seconds
@@ -246,7 +260,7 @@ class Optimizer:
 
         model.minimize(makespan + self.time_loss_weight * sum(losses))
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = max_time
+        solver.parameters.max_time_in_seconds = self.max_solve_time
         status = solver.Solve(model)
 
         if (
@@ -263,6 +277,7 @@ class Optimizer:
                         )
         else:
             raise ValueError("No optimal schedule found.")
+        return STATUS_STR.get(status, "UNKNOWN")
 
 
 if __name__ == "__main__":
