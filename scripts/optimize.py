@@ -1,35 +1,23 @@
 import importlib
 import logging
-from datetime import datetime
 
 import click
 
-from src.optimizer import format_schedule, optimize_schedule
-from src.protocol import Start
+from src.logging_config import setup_logging
+from src.optimizer import Optimizer
+from src.protocol import Start, format_protocol
 
 # logging setting
-now = datetime.now()
-date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-    ],
-)
-
-
+setup_logging()
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
 
 @click.command()
-@click.argument("protocol_file", type=click.Path(exists=True, dir_okay=False))
 @click.option(
-    "--protocolname",
-    type=str,
-    default="start",
-    help="Name of the protocol to use",
+    "--protocolfile",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to the protocol file",
 )
 @click.option(
     "--buffer",
@@ -37,15 +25,29 @@ logger.setLevel(logging.INFO)
     default=0,
     help="Buffer time in seconds",
 )
-def main(protocol_file: str, protocolname: str, buffer: int):
-    protocol_module = importlib.import_module(
-        protocol_file.replace("/", ".").replace(".py", "")
-    )
-    protocol: Start = getattr(protocol_module, protocolname)
+def main(protocolfile: str, buffer: int):
+    if protocolfile is not None:
+        protocol_module = importlib.import_module(
+            protocolfile.replace("/", ".").replace(".py", "")
+        )
+        # find start object from the module
+        protocol: Start | None = next(
+            (obj for obj in vars(protocol_module).values() if isinstance(obj, Start)),
+            None,
+        )
+        if protocol is None:
+            raise ValueError(
+                f"Protocol type 'Start' not found in the module '{protocolfile}'."
+            )
+        print(protocol)
+    else:
+        protocol = None
+
     logger.info(protocol)
     logger.info("Optimizing schedule...")
-    optimize_schedule(protocol, buffer_seconds=buffer)
-    print(format_schedule(protocol))
+    optimizer = Optimizer(buffer)
+    optimizer.optimize_schedule(protocol)
+    print(format_protocol(protocol))
 
 
 if __name__ == "__main__":

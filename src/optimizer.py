@@ -201,7 +201,6 @@ class Optimizer:
         oldest_time = get_oldest_time(start.flatten())
         tsc = TimeSecondsConverter(oldest_time)
         opt_protocol = protocol_to_opt(start, tsc, self.buffer_seconds)
-        print(opt_protocol)
 
         model = cp_model.CpModel()
         protocol_nodes = [
