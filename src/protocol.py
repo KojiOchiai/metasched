@@ -261,6 +261,72 @@ def protocol_from_dict(data: dict) -> Start | Delay | Protocol:
     return current_node
 
 
+def format_protocol(start: Start) -> str:
+    protocol_nodes: list[Protocol] = [
+        node for node in start.flatten() if type(node) is Protocol
+    ]
+    sorted_nodes = sorted(
+        protocol_nodes, key=lambda x: x.scheduled_time or datetime.max
+    )
+
+    start_time = sorted_nodes[0].scheduled_time
+    finish_time = sorted_nodes[-1].scheduled_time
+    last_duration = sorted_nodes[-1].duration
+    if start_time is None or finish_time is None or last_duration is None:
+        raise ValueError("No scheduled times found.")
+    total_duration = finish_time - start_time + last_duration
+
+    txt = f"Schedule: (total duration: {total_duration})\n"
+    for node in sorted_nodes:
+        if node.scheduled_time is not None:
+            state = ""
+            if node.started_time is not None:
+                started_time = node.started_time
+                state = "[Started]"
+            else:
+                started_time = node.scheduled_time
+            if node.finished_time is not None:
+                finished_time = node.finished_time
+                state = "[Done]"
+            else:
+                finished_time = node.scheduled_time + node.duration
+            duration = finished_time - node.scheduled_time
+            txt += (
+                f" - {node.name}: "
+                f"[{(started_time - start_time)}] "
+                f"{started_time.strftime('%Y-%m-%d %H:%M:%S')} ~ "
+                f"{finished_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                f" (Duration: {duration} )"
+                f" {state}\n"
+            )
+    delay_nodes: list[Delay] = [
+        node for node in start.flatten() if isinstance(node, Delay)
+    ]
+    txt += "Delay:\n"
+    for delay in delay_nodes:
+        pre_node = delay.pre_node
+        if pre_node is None:
+            continue
+        for post_node in delay.post_node:
+            if post_node.scheduled_time is None:
+                continue
+            if pre_node.finished_time is not None:
+                pre_node_finish = pre_node.finished_time
+            elif pre_node.scheduled_time is not None:
+                pre_node_finish = pre_node.scheduled_time + pre_node.duration
+            true_duration = post_node.scheduled_time - pre_node_finish
+            txt += (
+                f" - {pre_node.name}"
+                " -- "
+                f"{pre_node_finish.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"~ {post_node.scheduled_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                f" | {true_duration}(target: {delay.duration + delay.offset})"
+                " -> "
+                f"{post_node.name}\n"
+            )
+    return txt
+
+
 if __name__ == "__main__":
     import json
 
