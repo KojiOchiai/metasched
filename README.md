@@ -1,6 +1,9 @@
 # metashed
 dynamic scheduler
 
+# setup
+install uv from following [this instruction](https://docs.astral.sh/uv/getting-started/installation/)
+
 # install
 download
 ```bash
@@ -11,24 +14,37 @@ install
 uv sync
 ```
 
-# 使い方
+# オフライン実行
 
 ## protocolファイルを作成する
 - [protocol_8plates_fast.py](./sample/protocol_8plates_fast.py)を参考に実験手順ファイルを作成する
 - start: Start が開始点になる。変数名は"start"固定
 
-## 実行コマンド
-offlline実行
+## 最適化だけして結果を見る
 ```bash
-uv run main.py sample/protocol_8plates_fast.py --load executor_state
+uv run scripts/optimize.py --protocolfile sample/protocol_parallel_fast.py --buffer 3
 ```
 
-# simulator server の起動
+## 実行
 ```bash
-uv run python drivers/maholo/sim_server.py 
+uv run scripts/execute.py --protocolfile sample/protocol_parallel_fast.py --buffer 3
 ```
+bufferにはprotocolの間に最低限開けて欲しい秒数を指定する
+
+## スケジュールの確認
+scripts/execute.pyを実行したのと同じディレクトリで以下を実行する。execute.pyの実行途中でも確認可能。
+```bash
+uv run scripts/print_schedule.py
+```
+
+## Resume
+```bash
+uv run scripts/execute.py --resume --buffer 3
+```
+
 
 # maholoでの実行
+## 環境変数の設定
 下の設定を~/.bashrcに追加
 ```bash
 export MAHOLO_HOST=xx.x.x.xx # IP address of maholo FAPC
@@ -36,21 +52,18 @@ export MAHOLO_PORT=63001 # port that used by bioportal
 export MAHOLO_BASE_PATH=C:\\BioApl\\DataSet\\Path\\for\\Protocols\\ # directory path for protocols
 export MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/path/for/picture # directory path for picture
 ```
-
-本番用コマンド
+追加したら変数を読み込む
 ```bash
-uv run main.py sample/protocol_8plates_fast.py --load executor_state --driver maholo
+source ~/.bashrc
+```
+
+## protocol作成
+オフライン実行と同じ形式でプロトコルを用意する。
+
+## 本番用コマンド
+```bash
+uv run scripts/execute.py --protocolfile sample/protocol_parallel.py --buffer 60 --driver maholo
 ```
 
 # Stop
 実行したコマンドライン上でCtrl+Cでキャンセル。
-
-# Resume
-- コマンドを再度打つと、
-  - maholoを走らせている途中で停止 → そのタスクの最初から実行再開
-  - それ以外の場合 → 残りのスケジュールを実行
-
-## 残りのスケジュール確認
-```basy
-cat executor_state/awaitlist.json 
-```
