@@ -8,6 +8,7 @@ from src.driver import execute_task_dummy, execute_task_maholo
 from src.executor import Executor
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
+from src.optimizer import Optimizer
 from src.protocol import Start
 
 # logging setting
@@ -28,6 +29,12 @@ async def aloop(executor: Executor):
     help="Path to the protocol file",
 )
 @click.option(
+    "--buffer",
+    type=int,
+    default=0,
+    help="Buffer time in seconds",
+)
+@click.option(
     "--resume",
     is_flag=True,
     help="Load existing schedule from file",
@@ -46,6 +53,7 @@ async def aloop(executor: Executor):
 )
 def main(
     protocolfile: str,
+    buffer: int,
     resume: bool,
     driver: str,
     payloaddir: str,
@@ -76,7 +84,10 @@ def main(
     print(resume)
     driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
     executor = Executor(
-        driver=driver_func, json_storage=LocalJSONStorage(payloaddir), resume=resume
+        optimizer=Optimizer(buffer_seconds=buffer),
+        driver=driver_func,
+        json_storage=LocalJSONStorage(payloaddir),
+        resume=resume,
     )
     if protocol is not None:
         asyncio.run(executor.add_protocol(protocol))

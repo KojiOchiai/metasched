@@ -6,8 +6,15 @@ from typing import Awaitable, Callable
 
 from src.awaitlist import ATask, AwaitList
 from src.json_storage import JSONStorage
-from src.optimizer import format_schedule, optimize_schedule
-from src.protocol import Delay, FromType, Protocol, Start, protocol_from_dict
+from src.optimizer import Optimizer
+from src.protocol import (
+    Delay,
+    FromType,
+    Protocol,
+    Start,
+    format_protocol,
+    protocol_from_dict,
+)
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -19,12 +26,14 @@ logger.setLevel(logging.INFO)
 class Executor:
     def __init__(
         self,
+        optimizer: Optimizer,
         driver: Callable[[str], Awaitable[str]],
         json_storage: JSONStorage,
         resume: bool = False,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
+        self.optimizer = optimizer
         self.driver: Callable[[str], Awaitable[str]] = driver
         self.json_storage = json_storage
         if resume:
@@ -57,7 +66,7 @@ class Executor:
         marged_protocol = Start()
         for starts in self.protocols:
             marged_protocol > starts.post_node
-        optimize_schedule(marged_protocol, buffer_seconds=buffer_seconds)
+        self.optimizer.optimize_schedule(marged_protocol)
 
         # cancel all tasks in await list
         tasks = self.await_list.get_tasks()
@@ -149,11 +158,15 @@ async def main() -> None:
     sec5 = Delay(duration=timedelta(seconds=5), from_type=FromType.START)
     s2 > p1 > [p2, sec5 > p3]
 
-    executor = Executor(driver=execute_task_dummy, json_storage=LocalJSONStorage())
+    executor = Executor(
+        optimizer=Optimizer(buffer_seconds=10),
+        driver=execute_task_dummy,
+        json_storage=LocalJSONStorage(),
+    )
     await executor.add_protocol(s1)
     await executor.add_protocol(s2)
-    print(format_schedule(s1))
-    print(format_schedule(s2))
+    print(format_protocol(s1))
+    print(format_protocol(s2))
 
 
 if __name__ == "__main__":
