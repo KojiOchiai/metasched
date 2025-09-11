@@ -17,41 +17,20 @@ logger.setLevel(logging.INFO)
 
 
 async def aloop(executor: Executor):
-    logger.info({"message": "Executor initialized"})
+    logger.info({"message": "Executor loop started"})
     await executor.loop()
 
 
-async def amain(
-    protocol_file: str,
-    protocolname: str,
-    load: str | None,
-    driver: str,
-    payloaddir: str,
-):
-    protocol_module = importlib.import_module(
-        protocol_file.replace("/", ".").replace(".py", "")
-    )
-    protocol: Start = getattr(protocol_module, protocolname)
-    print(protocol)
-    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
-    executor = Executor(driver=driver_func, json_storage=LocalJSONStorage(payloaddir))
-    await executor.add_protocol(protocol)
-    await aloop(executor)
-
-
 @click.command()
-@click.argument("protocol_file", type=click.Path(exists=True, dir_okay=False))
 @click.option(
-    "--protocolname",
-    type=str,
-    default="start",
-    help="Name of the protocol to use",
+    "--protocolfile",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to the protocol file",
 )
 @click.option(
-    "--load",
-    type=click.Path(),
-    default=None,
-    help="Load existing executor state from file",
+    "--resume",
+    is_flag=True,
+    help="Load existing schedule from file",
 )
 @click.option(
     "--driver",
@@ -66,13 +45,42 @@ async def amain(
     help="Directory to store payloads. If not set, payloads will be stored in the ./payloads directory",
 )
 def main(
-    protocol_file: str,
-    protocolname: str,
-    load: str | None,
+    protocolfile: str,
+    resume: bool,
     driver: str,
     payloaddir: str,
 ):
-    asyncio.run(amain(protocol_file, protocolname, load, driver, payloaddir))
+    # validate options
+    if not (protocolfile or resume):
+        raise click.UsageError("Either --protocolfile or --resume must be specified.")
+    if protocolfile and resume:
+        raise click.UsageError("--protocolfile and --resume cannot be used together.")
+
+    if protocolfile is not None:
+        protocol_module = importlib.import_module(
+            protocolfile.replace("/", ".").replace(".py", "")
+        )
+        # find start object from the module
+        protocol: Start | None = next(
+            (obj for obj in vars(protocol_module).values() if isinstance(obj, Start)),
+            None,
+        )
+        if protocol is None:
+            raise ValueError(
+                f"Protocol type 'Start' not found in the module '{protocolfile}'."
+            )
+        print(protocol)
+    else:
+        protocol = None
+
+    print(resume)
+    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
+    executor = Executor(
+        driver=driver_func, json_storage=LocalJSONStorage(payloaddir), resume=resume
+    )
+    if protocol is not None:
+        asyncio.run(executor.add_protocol(protocol))
+    asyncio.run(aloop(executor))
 
 
 if __name__ == "__main__":

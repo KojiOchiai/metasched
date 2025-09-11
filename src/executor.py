@@ -7,7 +7,7 @@ from typing import Awaitable, Callable
 from src.awaitlist import ATask, AwaitList
 from src.json_storage import JSONStorage
 from src.optimizer import format_schedule, optimize_schedule
-from src.protocol import Delay, FromType, Protocol, Start
+from src.protocol import Delay, FromType, Protocol, Start, protocol_from_dict
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -18,12 +18,20 @@ logger.setLevel(logging.INFO)
 
 class Executor:
     def __init__(
-        self, driver: Callable[[str], Awaitable[str]], json_storage: JSONStorage
+        self,
+        driver: Callable[[str], Awaitable[str]],
+        json_storage: JSONStorage,
+        resume: bool = False,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
         self.driver: Callable[[str], Awaitable[str]] = driver
         self.json_storage = json_storage
+        if resume:
+            data = self.json_storage.load()
+            protocols = [protocol_from_dict(d) for d in data]
+            self.protocols = [p for p in protocols if type(p) is Start]
+            asyncio.run(self.optimize())
 
     async def add_protocol(self, protocol: Start) -> Start:
         # check duplicate
