@@ -92,6 +92,7 @@ class Executor:
                 "function": "optimize",
                 "type": "end",
                 "solver_status": solver_status,
+                "max_solve_time": self.optimizer.max_solve_time,
                 "protocols_saved_path": filepath,
                 "next_protocol_id": str(next_protocol.id),
                 "next_protocol_name": next_protocol.name,
