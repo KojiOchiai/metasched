@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from datetime import datetime
 
 import click
 
@@ -12,10 +11,20 @@ logger.setLevel(logging.INFO)
 
 
 async def execute_task_dummy(task_name: str) -> str:
-    logger.info(f"[Dummy] Executing {task_name} at {datetime.now()}")
+    logger.info(
+        {"function": "execute_task_dummy", "type": "start", "task_name": task_name}
+    )
     await asyncio.sleep(2)  # Simulate task execution time
-    logger.info(f"[Dummy] Finished {task_name} at {datetime.now()}")
-    return f"Executed {task_name} at {datetime.now()}"
+    result = "success"
+    logger.info(
+        {
+            "function": "execute_task_dummy",
+            "type": "end",
+            "task_name": task_name,
+            "result": result,
+        }
+    )
+    return result
 
 
 driver = MaholoDriver(
@@ -27,12 +36,19 @@ driver = MaholoDriver(
 
 
 async def execute_task_maholo(task_name: str) -> str:
-    logger.info(f"[Maholo Protocol] Executing {task_name} at {datetime.now()}")
+    logger.info(
+        {"function": "execute_task_maholo", "type": "start", "task_name": task_name}
+    )
     result = await driver.run(task_name)
     logger.info(
-        f"[Maholo Protocol] Finished {task_name} at {datetime.now()} result: {result}"
+        {
+            "function": "execute_task_maholo",
+            "type": "end",
+            "task_name": task_name,
+            "result": result,
+        }
     )
-    return f"Executed {task_name} at {datetime.now()}"
+    return str(result)
 
 
 @click.command()
@@ -51,13 +67,10 @@ def main(task_name: str, driver: str = "dummy") -> None:
 
 
 if __name__ == "__main__":
+    from src.logging_config import setup_logging
+
+    setup_logging()
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
 
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    handler.setFormatter(formatter)
-
-    logger.addHandler(handler)
     main()
