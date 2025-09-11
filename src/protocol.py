@@ -293,10 +293,10 @@ def format_protocol(start: Start) -> str:
             duration = finished_time - node.scheduled_time
             txt += (
                 f" - {node.name}: "
-                f"[{(started_time - start_time)}] "
+                f"[{timedelta(seconds=round((started_time - start_time).total_seconds()))}] "
                 f"{started_time.strftime('%Y-%m-%d %H:%M:%S')} ~ "
                 f"{finished_time.strftime('%Y-%m-%d %H:%M:%S')}"
-                f" (Duration: {duration} )"
+                f" (Duration: {timedelta(seconds=round(duration.total_seconds()))})"
                 f" {state}\n"
             )
     delay_nodes: list[Delay] = [
