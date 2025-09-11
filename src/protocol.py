@@ -82,28 +82,22 @@ class Node(Generic[PRE_T, POST_T]):
 @dataclass
 class Start(Node[None, Union["Protocol", "Delay"]]):
     node_type: NodeType = field(default=NodeType.START)
-    start_time: datetime | None = None
 
     def __str__(self, indent=0):
-        base = f"Start(start_time={self.start_time})"
+        base = "Start()"
         for child in self.post_node:
             base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
         return base
 
     def to_dict(self):
-        return {"start_time": self.start_time, **super().to_dict()}
+        return super().to_dict()
 
     @classmethod
     def from_dict(cls, data: dict) -> Self:
         node_type = data.get("node_type")
         if node_type is None or NodeType(node_type) != NodeType.START:
             raise ValueError("Invalid node_type for Start node")
-        start_time = data.get("start_time")
-        if start_time is not None:
-            start_time = datetime.fromtimestamp(start_time)
-        return cls(
-            start_time=start_time,
-        )
+        return cls()
 
 
 class FromType(Enum):
