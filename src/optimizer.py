@@ -114,7 +114,7 @@ def protocol_to_opt(
             else None
         )
         finished_time = (
-            int(tsc.time_to_seconds(protocol_node.finished_time))
+            int(tsc.time_to_seconds(protocol_node.finished_time) + buffer_seconds)
             if protocol_node.finished_time
             else None
         )
@@ -131,9 +131,14 @@ def protocol_to_opt(
         for post_opt_node in post_nodes:
             if not isinstance(post_opt_node, Protocol):
                 raise ValueError("Protocol expected as post_node")
+        total_seconds = protocol_node.duration.total_seconds()
+        if total_seconds < buffer_seconds:
+            raise ValueError(
+                f"Delay duration {total_seconds} is shorter than buffer {buffer_seconds}"
+            )
         return Delay(
             id=protocol_node.id,
-            duration=int(protocol_node.duration.total_seconds() - buffer_seconds),
+            duration=int(total_seconds - buffer_seconds),
             from_type=protocol_node.from_type,
             offset=int(protocol_node.offset.total_seconds()),
             pre_node=None,
@@ -183,73 +188,82 @@ class TimeSecondsConverter:
         return self.start_time + timedelta(seconds=seconds)
 
 
-def optimize_schedule(
-    start: protocol.Start,
-    max_time: int = 5,
-    time_loss_weight: int = 100,
-    buffer_seconds: int = 0,
-) -> None:
-    max_time = int(sum_durations(start.flatten()))
-    oldest_time = get_oldest_time(start.flatten())
-    tsc = TimeSecondsConverter(oldest_time)
-    opt_protocol = protocol_to_opt(start, tsc, buffer_seconds)
+class Optimizer:
+    def __init__(self, buffer_seconds: int = 0, time_loss_weight: int = 100) -> None:
+        self.buffer_seconds = buffer_seconds
+        self.time_loss_weight = time_loss_weight
 
-    model = cp_model.CpModel()
-    protocol_nodes = [
-        node for node in opt_protocol.flatten() if isinstance(node, Protocol)
-    ]
-    delay_nodes = [node for node in opt_protocol.flatten() if isinstance(node, Delay)]
+    def optimize_schedule(self, start: protocol.Start) -> None:
+        nodes = start.flatten()
+        max_time = (
+            int(sum_durations(start.flatten())) + len(nodes) * self.buffer_seconds
+        )
+        oldest_time = get_oldest_time(start.flatten())
+        tsc = TimeSecondsConverter(oldest_time)
+        opt_protocol = protocol_to_opt(start, tsc, self.buffer_seconds)
+        print(opt_protocol)
 
-    intervals = []
-    makespan = model.NewIntVar(0, max_time, "makespan")
-    for node in protocol_nodes:
-        node.set_vars(model, max_time)
-        # no overlap
-        if node.interval is not None:
-            intervals.append(node.interval)
-        # finish time
-        if node.finish_time is not None:
-            model.Add(makespan >= node.finish_time)
-    model.AddNoOverlap(intervals)
+        model = cp_model.CpModel()
+        protocol_nodes = [
+            node for node in opt_protocol.flatten() if isinstance(node, Protocol)
+        ]
+        delay_nodes = [
+            node for node in opt_protocol.flatten() if isinstance(node, Delay)
+        ]
 
-    # order
-    for node in protocol_nodes:
-        for post_node in node.post_node:
-            if isinstance(post_node, Protocol):
-                if node.finish_time is not None and post_node.start_time is not None:
-                    model.Add(node.finish_time <= post_node.start_time)
-    for delay in delay_nodes:
-        for post_node in delay.post_node:
-            if (
-                delay.pre_node is None
-                or type(delay.pre_node) is not Protocol
-                or post_node.start_time is None
-            ):
-                continue
-            model.Add(delay.pre_node.finish_time <= post_node.start_time)
-
-    # delay
-    losses = [delay.set_loss(model) for delay in delay_nodes]
-
-    model.minimize(makespan + time_loss_weight * sum(losses))
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = max_time
-    status = solver.Solve(model)
-
-    if (
-        status == cp_model.OPTIMAL
-        or status == cp_model.FEASIBLE
-        or status == cp_model.UNKNOWN
-    ):
+        intervals = []
+        makespan = model.NewIntVar(0, max_time, "makespan")
         for node in protocol_nodes:
-            if node.start_time is not None and node.finish_time is not None:
-                p_node = start.get_node(node.id)
-                if isinstance(p_node, protocol.Protocol):
-                    p_node.scheduled_time = tsc.seconds_to_time(
-                        solver.Value(node.start_time)
-                    )
-    else:
-        raise ValueError("No optimal schedule found.")
+            node.set_vars(model, max_time)
+            # no overlap
+            if node.interval is not None:
+                intervals.append(node.interval)
+            # finish time
+            if node.finish_time is not None:
+                model.Add(makespan >= node.finish_time)
+        model.AddNoOverlap(intervals)
+
+        # order
+        for node in protocol_nodes:
+            for post_node in node.post_node:
+                if isinstance(post_node, Protocol):
+                    if (
+                        node.finish_time is not None
+                        and post_node.start_time is not None
+                    ):
+                        model.Add(node.finish_time <= post_node.start_time)
+        for delay in delay_nodes:
+            for post_node in delay.post_node:
+                if (
+                    delay.pre_node is None
+                    or type(delay.pre_node) is not Protocol
+                    or post_node.start_time is None
+                ):
+                    continue
+                model.Add(delay.pre_node.finish_time <= post_node.start_time)
+
+        # delay
+        losses = [delay.set_loss(model) for delay in delay_nodes]
+
+        model.minimize(makespan + self.time_loss_weight * sum(losses))
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = max_time
+        status = solver.Solve(model)
+
+        if (
+            status == cp_model.OPTIMAL
+            or status == cp_model.FEASIBLE
+            or status == cp_model.UNKNOWN
+        ):
+            for node in protocol_nodes:
+                if node.start_time is not None and node.finish_time is not None:
+                    p_node = start.get_node(node.id)
+                    if isinstance(p_node, protocol.Protocol):
+                        p_node.scheduled_time = tsc.seconds_to_time(
+                            solver.Value(node.start_time)
+                        )
+        else:
+            raise ValueError("No optimal schedule found.")
 
 
 if __name__ == "__main__":
@@ -259,14 +273,14 @@ if __name__ == "__main__":
     p3 = protocol.Protocol(name="P3", duration=timedelta(seconds=2))
 
     sec4 = protocol.Delay(
-        duration=timedelta(seconds=1), from_type=protocol.FromType.START
+        duration=timedelta(seconds=4), from_type=protocol.FromType.START
     )
 
     sec5 = protocol.Delay(
         duration=timedelta(seconds=5), from_type=protocol.FromType.START
     )
 
-    s > p1 > [sec4 > p2, sec5 > p3]
+    s > p1 > [p2, sec5 > p3]
 
     p1.started_time = datetime.now()
     p1.finished_time = p1.started_time + timedelta(minutes=10, seconds=1)
@@ -281,5 +295,5 @@ if __name__ == "__main__":
     print("time in seconds: ", time_in_seconds)
     print("time: ", tsc.seconds_to_time(time_in_seconds))
     print("---- to opt ----")
-    optimize_schedule(s, 30)
+    Optimizer(1).optimize_schedule(s)
     print(protocol.format_protocol(s))
