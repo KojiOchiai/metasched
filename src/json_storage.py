@@ -28,7 +28,7 @@ class JSONStorage(ABC):
         pass
 
     @abstractmethod
-    def load(self, key: str) -> Any:
+    def load(self, key: str | None = None) -> Any:
         """
         Load JSON data.
 
@@ -69,9 +69,15 @@ class LocalJSONStorage(JSONStorage):
         # Return the file path as a string
         return str(filepath)
 
-    def load(self, key: str) -> Any:
+    def load(self, key: str | None = None) -> Any:
         # Allow passing either a full path or just the key
-        filepath = Path(key)
+        if key is None:
+            filenames = list(self.base_dir.glob("*.json"))
+            if not filenames:
+                raise FileNotFoundError("No JSON files found in the storage directory")
+            # Load the most recent file if no key is provided
+            filepath = max(filenames, key=lambda f: f.stat().st_mtime)
+        filepath = Path(filepath)
         if not filepath.exists():
             filepath = self.base_dir / f"{key}.json"
 
