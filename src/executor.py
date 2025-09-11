@@ -16,9 +16,6 @@ from src.protocol import (
     protocol_from_dict,
 )
 
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-
 logger = logging.getLogger("executor")
 logger.setLevel(logging.INFO)
 
@@ -66,7 +63,7 @@ class Executor:
         marged_protocol = Start()
         for starts in self.protocols:
             marged_protocol > starts.post_node
-        self.optimizer.optimize_schedule(marged_protocol)
+        solver_status = self.optimizer.optimize_schedule(marged_protocol)
 
         # cancel all tasks in await list
         tasks = self.await_list.get_tasks()
@@ -78,6 +75,9 @@ class Executor:
             p for p in marged_protocol.flatten() if type(p) is Protocol
         ]
         protocols = [p for p in all_protocol if p.started_time is None]
+        if len(protocols) == 0:
+            logger.info({"function": "optimize", "type": "end", "message": "no tasks"})
+            return
         next_protocol = min(protocols, key=lambda x: x.scheduled_time or datetime.max)
 
         # add tasks to await list
@@ -91,6 +91,7 @@ class Executor:
             {
                 "function": "optimize",
                 "type": "end",
+                "solver_status": solver_status,
                 "protocols_saved_path": filepath,
                 "next_protocol_id": str(next_protocol.id),
                 "next_protocol_name": next_protocol.name,
