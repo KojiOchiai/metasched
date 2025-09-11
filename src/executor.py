@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 
 from src.awaitlist import ATask, AwaitList
+from src.json_storage import JSONStorage
 from src.optimizer import format_schedule, optimize_schedule
 from src.protocol import Delay, FromType, Protocol, Start
 
@@ -16,10 +17,13 @@ logger.setLevel(logging.INFO)
 
 
 class Executor:
-    def __init__(self, driver: Callable[[str], Awaitable[str]]) -> None:
+    def __init__(
+        self, driver: Callable[[str], Awaitable[str]], json_storage: JSONStorage
+    ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
         self.driver: Callable[[str], Awaitable[str]] = driver
+        self.json_storage = json_storage
 
     async def add_protocol(self, protocol: Start) -> Start:
         # check duplicate
@@ -31,7 +35,9 @@ class Executor:
         return protocol
 
     async def optimize(self, buffer_seconds: int = 0) -> None:
-        logger.info({"function": "optimize", "buffer_seconds": buffer_seconds})
+        logger.info(
+            {"function": "optimize", "type": "start", "buffer_seconds": buffer_seconds}
+        )
         # optimize all protocol
         marged_protocol = Start()
         for starts in self.protocols:
@@ -56,9 +62,12 @@ class Executor:
         await self.await_list.add_task(
             execution_time=next_protocol.scheduled_time, content=str(next_protocol.id)
         )
+        filepath = self.json_storage.save([p.to_dict() for p in self.protocols])
         logger.info(
             {
                 "function": "optimize",
+                "type": "end",
+                "protocols_saved_path": filepath,
                 "next_protocol_id": str(next_protocol.id),
                 "next_protocol_name": next_protocol.name,
                 "next_protocol_scheduled_time": next_protocol.scheduled_time.isoformat(),
@@ -108,6 +117,7 @@ class Executor:
 
 async def main() -> None:
     from src.driver import execute_task_dummy
+    from src.json_storage import LocalJSONStorage
 
     s1 = Start()
     p1 = Protocol(name="P1", duration=timedelta(minutes=10))
@@ -124,7 +134,7 @@ async def main() -> None:
     sec5 = Delay(duration=timedelta(seconds=5), from_type=FromType.START)
     s2 > p1 > [p2, sec5 > p3]
 
-    executor = Executor(driver=execute_task_dummy)
+    executor = Executor(driver=execute_task_dummy, json_storage=LocalJSONStorage())
     await executor.add_protocol(s1)
     await executor.add_protocol(s2)
     print(format_schedule(s1))
