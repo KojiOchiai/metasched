@@ -35,8 +35,15 @@ class Executor:
 
     async def add_protocol(self, protocol: Start) -> Start:
         # check duplicate
-        ids = [p.id for p in self.protocols]
-        if protocol.id in ids:
+        if type(protocol) is not Start:
+            raise ValueError("Only Start protocol can be added")
+        all_exist_nodes: list[Start | Protocol | Delay] = sum(
+            [p.flatten() for p in self.protocols], []
+        )
+        all_exist_ids = [node.id for node in all_exist_nodes]
+        ids = [node.id for node in protocol.flatten()]
+        all_ids = all_exist_ids + ids
+        if len(all_ids) != len(set(all_ids)):
             raise ValueError("Protocol with the same ID already exists")
         self.protocols.append(protocol)
         await self.optimize()
