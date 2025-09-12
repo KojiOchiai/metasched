@@ -53,6 +53,15 @@ class Executor:
             raise ValueError("Protocol with the same ID already exists")
         self.protocols.append(protocol)
         await self.optimize()
+        logger.info(
+            {
+                "function": "add_protocol",
+                "type": "end",
+                "protocol": {
+                    "protocol_id": str(protocol.top.id),
+                },
+            }
+        )
         return protocol
 
     async def optimize(self, buffer_seconds: int = 0) -> None:
@@ -61,9 +70,13 @@ class Executor:
         )
         # optimize all protocol
         marged_protocol = Start()
-        for starts in self.protocols:
-            marged_protocol > starts.post_node
+        for start in self.protocols:
+            marged_protocol > start.post_node
         solver_status = self.optimizer.optimize_schedule(marged_protocol)
+        # reset starts
+        for start in self.protocols:
+            for node in start.post_node:
+                node.pre_node = start
 
         # cancel all tasks in await list
         tasks = self.await_list.get_tasks()
@@ -94,9 +107,12 @@ class Executor:
                 "solver_status": solver_status,
                 "max_solve_time": self.optimizer.max_solve_time,
                 "protocols_saved_path": filepath,
-                "next_protocol_id": str(next_protocol.id),
-                "next_protocol_name": next_protocol.name,
-                "next_protocol_scheduled_time": next_protocol.scheduled_time.isoformat(),
+                "next_protocol_node": {
+                    "protocol_id": str(next_protocol.top.id),
+                    "protocol_node_id": str(next_protocol.id),
+                    "name": next_protocol.name,
+                    "scheduled_time": next_protocol.scheduled_time.isoformat(),
+                },
             }
         )
 
@@ -104,8 +120,12 @@ class Executor:
         logger.info(
             {
                 "function": "process_task",
-                "protocol_id": str(task.id),
-                "task_execution_time": task.execution_time.isoformat(),
+                "type": "start",
+                "task": {
+                    "id": str(task.id),
+                    "execution_time": task.execution_time.isoformat(),
+                    "content": task.content,
+                },
             }
         )
         # get current node
@@ -126,12 +146,20 @@ class Executor:
         logger.info(
             {
                 "function": "process_task",
-                "task_content": task.content,
-                "task_execution_time": task.execution_time.isoformat(),
-                "protocol_name": protocol_name,
-                "result": result,
-                "protocol_started_time": current_protocol.started_time.isoformat(),
-                "protocol_finished_time": current_protocol.finished_time.isoformat(),
+                "type": "end",
+                "task": {
+                    "id": str(task.id),
+                    "execution_time": task.execution_time.isoformat(),
+                    "content": task.content,
+                },
+                "protocol_node": {
+                    "protocol_id": str(current_protocol.top.id),
+                    "protocol_node_id": str(current_protocol.id),
+                    "name": current_protocol.name,
+                    "result": result,
+                    "started_time": current_protocol.started_time.isoformat(),
+                    "finished_time": current_protocol.finished_time.isoformat(),
+                },
             }
         )
         await self.optimize()
