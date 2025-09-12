@@ -81,7 +81,7 @@ def main(
     else:
         protocol = None
 
-    print(resume)
+    print("resume:", resume)
     driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
