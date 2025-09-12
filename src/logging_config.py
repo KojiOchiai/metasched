@@ -10,7 +10,10 @@ def setup_logging():
     if not root_logger.handlers:  # stop adding multiple handlers
         handler = logging.StreamHandler()
         formatter = jsonlogger.JsonFormatter(
-            "{levelname}{name}", timestamp=True, style="{", json_ensure_ascii=False
+            "{timestamp}{levelname}{name}",
+            timestamp=True,
+            style="{",
+            json_ensure_ascii=False,
         )
         handler.setFormatter(formatter)
         root_logger.addHandler(handler)
