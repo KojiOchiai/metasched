@@ -10,12 +10,12 @@ logger = logging.getLogger("driver")
 logger.setLevel(logging.INFO)
 
 
-async def execute_task_dummy(task_name: str) -> str:
+async def execute_task_dummy(task_name: str) -> list[str] | None:
     logger.info(
         {"function": "execute_task_dummy", "type": "start", "task_name": task_name}
     )
     await asyncio.sleep(2)  # Simulate task execution time
-    result = "success"
+    result = None
     logger.info(
         {
             "function": "execute_task_dummy",
@@ -35,7 +35,7 @@ driver = MaholoDriver(
 )
 
 
-async def execute_task_maholo(task_name: str) -> str:
+async def execute_task_maholo(task_name: str) -> list[str] | None:
     logger.info(
         {"function": "execute_task_maholo", "type": "start", "task_name": task_name}
     )
@@ -48,7 +48,7 @@ async def execute_task_maholo(task_name: str) -> str:
             "result": result,
         }
     )
-    return str(result)
+    return result
 
 
 @click.command()

@@ -24,14 +24,14 @@ class Executor:
     def __init__(
         self,
         optimizer: Optimizer,
-        driver: Callable[[str], Awaitable[str]],
+        driver: Callable[[str], Awaitable[list[str] | None]],
         json_storage: JSONStorage,
         resume: bool = False,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
         self.optimizer = optimizer
-        self.driver: Callable[[str], Awaitable[str]] = driver
+        self.driver: Callable[[str], Awaitable[list[str] | None]] = driver
         self.json_storage = json_storage
         if resume:
             data = self.json_storage.load()
