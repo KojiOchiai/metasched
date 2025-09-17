@@ -81,10 +81,11 @@ class Node(Generic[PRE_T, POST_T]):
 
 @dataclass
 class Start(Node[None, Union["Protocol", "Delay"]]):
+    requested_start_time: datetime = field(default_factory=datetime.now)
     node_type: NodeType = field(default=NodeType.START)
 
     def __str__(self, indent=0):
-        base = "Start()"
+        base = f"Start(requested_start_time={self.requested_start_time})"
         for child in self.post_node:
             base += f"\n{' ' * (indent + 2)}{child.__str__(indent + 2)}"
         return base
