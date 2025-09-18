@@ -101,7 +101,7 @@ wheels = [
 ]
 
 [[package]]
-name = "metashed"
+name = "metasched"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
