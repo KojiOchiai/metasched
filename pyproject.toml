@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=2.3.2",
     "opencv-python>=4.11.0.86",
     "ortools>=9.12.4544",
+    "pint>=0.25",
     "pydantic-settings>=2.10.1",
     "python-json-logger>=3.3.0",
     "uvicorn>=0.35.0",
