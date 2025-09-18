@@ -22,7 +22,6 @@ class Task:
         self.demand = demand
 
         # モデル変数（後で初期化）
-        self.possible_tubes: list[str] = []
         self.tube_assignments: dict[str, cp_model.IntVar] = {}
         self.start_times: dict[str, cp_model.IntVar] = {}
         self.end_times: dict[str, cp_model.IntVar] = {}
@@ -42,8 +41,6 @@ class Task:
         self, model: cp_model.CpModel, horizon: int, possible_tubes: List[str]
     ):
         """モデル内の変数を初期化"""
-        self.possible_tubes = possible_tubes
-
         for tube in possible_tubes:
             # タスクがこのチューブを選ぶか
             used = model.NewBoolVar(f"{self.name}_uses_{tube}")
