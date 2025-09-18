@@ -1,4 +1,4 @@
-# metashed
+# metasched
 dynamic scheduler
 
 # setup
@@ -7,7 +7,7 @@ install uv from following [this instruction](https://docs.astral.sh/uv/getting-s
 # install
 download
 ```bash
-git clone git@github.com:KojiOchiai/metashed.git
+git clone git@github.com:KojiOchiai/metasched.git
 ```
 install
 ```bash
