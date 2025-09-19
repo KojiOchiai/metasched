@@ -4,7 +4,7 @@ import logging
 import click
 
 from drivers.maholo.driver import MaholoDriver
-from src.settings import maholo_settings
+from drivers.maholo.settings import maholo_settings
 
 logger = logging.getLogger("driver")
 logger.setLevel(logging.INFO)
@@ -67,7 +67,7 @@ def main(task_name: str, driver: str = "dummy") -> None:
 
 
 if __name__ == "__main__":
-    from src.logging_config import setup_logging
+    from logging.logging_config import setup_logging
 
     setup_logging()
     handler = logging.StreamHandler()

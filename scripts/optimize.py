@@ -3,7 +3,7 @@ import logging
 
 import click
 
-from src.logging_config import setup_logging
+from src.logging.logging_config import setup_logging
 from src.optimizer import Optimizer
 from src.protocol import Start, format_protocol
 

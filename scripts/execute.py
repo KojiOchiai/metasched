@@ -4,10 +4,11 @@ import logging
 
 import click
 
-from src.driver import execute_task_dummy, execute_task_maholo
-from src.executor import Executor
-from src.json_storage import LocalJSONStorage
-from src.logging_config import setup_logging
+from drivers.dummy import execute_task_dummy
+from drivers.maholo import execute_task_maholo
+from src.executor.executor import Executor
+from src.logging.json_storage import LocalJSONStorage
+from src.logging.logging_config import setup_logging
 from src.optimizer import Optimizer
 from src.protocol import Start
 

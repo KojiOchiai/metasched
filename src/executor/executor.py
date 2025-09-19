@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 
-from src.awaitlist import ATask, AwaitList
-from src.json_storage import JSONStorage
+from src.executor.awaitlist import ATask, AwaitList
+from src.logging.json_storage import JSONStorage
 from src.optimizer import Optimizer
 from src.protocol import (
     Delay,
@@ -170,8 +170,8 @@ class Executor:
 
 
 async def main() -> None:
-    from src.driver import execute_task_dummy
-    from src.json_storage import LocalJSONStorage
+    from drivers.maholo.driver import execute_task_dummy
+    from src.logging.json_storage import LocalJSONStorage
 
     s1 = Start()
     p1 = Protocol(name="P1", duration=timedelta(minutes=10))

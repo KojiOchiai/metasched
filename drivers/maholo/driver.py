@@ -1,8 +1,13 @@
 import asyncio
+import logging
 from pathlib import Path
 
 from .maholo_api import client, schemas
 from .maholo_api.client import BioportalClientError
+from .settings import maholo_settings
+
+logger = logging.getLogger("maholo_driver")
+logger.setLevel(logging.INFO)
 
 
 class DriverError(Exception):
@@ -139,3 +144,27 @@ class MaholoDriver(Driver):
             if isinstance(res, response_type):
                 return res
         raise DriverError("Failed to get response")
+
+
+driver = MaholoDriver(
+    host=maholo_settings.host,
+    port=maholo_settings.port,
+    base_path=maholo_settings.base_path,
+    microscope_image_dir=maholo_settings.microscope_image_dir,
+)
+
+
+async def execute_task_maholo(task_name: str) -> list[str] | None:
+    logger.info(
+        {"function": "execute_task_maholo", "type": "start", "task_name": task_name}
+    )
+    result = await driver.run(task_name)
+    logger.info(
+        {
+            "function": "execute_task_maholo",
+            "type": "end",
+            "task_name": task_name,
+            "result": result,
+        }
+    )
+    return result

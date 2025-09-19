@@ -2,8 +2,8 @@ import logging
 
 import click
 
-from src.json_storage import LocalJSONStorage
-from src.logging_config import setup_logging
+from src.logging.json_storage import LocalJSONStorage
+from src.logging.logging_config import setup_logging
 from src.protocol import Start, format_protocol, protocol_from_dict
 
 # logging setting
