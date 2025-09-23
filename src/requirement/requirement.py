@@ -146,11 +146,7 @@ class NewLabware(BaseLabware):
 
 class ExistingLabware(BaseLabware):
     type: RequirementType = "existing_labware"
-    identical_to: UUID | None = (
-        None
-        # UUID of another New/ExistingLabware requirement.
-        # None means this labware need to imported from elsewhere.
-    )
+    parent_id: UUID
 
     class Config:
         frozen = True
