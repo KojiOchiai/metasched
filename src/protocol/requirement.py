@@ -4,16 +4,7 @@ from uuid import UUID, uuid4
 
 import pint
 from pint import UnitRegistry
-from pydantic import (
-    BaseModel,
-    Field,
-    PositiveFloat,
-    field_serializer,
-    field_validator,
-    model_validator,
-)
-
-from src.protocol.label import StoreType
+from pydantic import BaseModel, Field, PositiveFloat, field_serializer, field_validator
 
 ureg = UnitRegistry()
 
@@ -93,7 +84,6 @@ class Liquid(BaseModel):
 
 class Requirement(BaseModel):
     type: RequirementType
-    prepare_to: str
 
     class Config:
         frozen = True
@@ -113,16 +103,6 @@ class Reagent(Requirement):
 class BaseLabware(Requirement):
     id: UUID = Field(default_factory=uuid4)
     labware_type: LabwareType
-    discard: bool = Field(default=False)
-    store: set[StoreType] | None = Field(default=None)
-
-    @model_validator(mode="after")
-    def check_mutual_exclusion(self):
-        if self.discard and (self.store is not None):
-            raise ValueError("discard and store can not be used together")
-        if not self.discard and (self.store is None):
-            raise ValueError("discard or store must be used")
-        return self
 
     @field_serializer("store")
     def serialize_store(self, value):
@@ -146,7 +126,7 @@ class NewLabware(BaseLabware):
 
 class ExistingLabware(BaseLabware):
     type: RequirementType = "existing_labware"
-    parent_id: UUID
+    parent_labware: BaseLabware | None = Field(default=None)
 
     class Config:
         frozen = True
