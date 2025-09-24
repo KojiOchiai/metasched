@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from src.requirement.label import StoreType
+from src.protocol.requirement.label import StoreType
 
 ureg = UnitRegistry()
 

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from ortools.sat.python import cp_model
 
-from src import protocol
+from src.protocol import protocol
 
 model = cp_model.CpModel()
 

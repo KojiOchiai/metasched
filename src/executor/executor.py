@@ -7,7 +7,7 @@ from typing import Awaitable, Callable
 from src.executor.awaitlist import ATask, AwaitList
 from src.logging.json_storage import JSONStorage
 from src.optimizer import Optimizer
-from src.protocol import (
+from src.protocol.protocol import (
     Delay,
     FromType,
     Protocol,
@@ -170,7 +170,7 @@ class Executor:
 
 
 async def main() -> None:
-    from drivers.maholo.driver import execute_task_dummy
+    from drivers.dummy.driver import execute_task_dummy
     from src.logging.json_storage import LocalJSONStorage
 
     s1 = Start()

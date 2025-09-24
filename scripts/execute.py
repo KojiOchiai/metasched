@@ -10,7 +10,7 @@ from src.executor.executor import Executor
 from src.logging.json_storage import LocalJSONStorage
 from src.logging.logging_config import setup_logging
 from src.optimizer import Optimizer
-from src.protocol import Start
+from src.protocol.protocol import Start
 
 # logging setting
 setup_logging()

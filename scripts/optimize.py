@@ -5,7 +5,7 @@ import click
 
 from src.logging.logging_config import setup_logging
 from src.optimizer import Optimizer
-from src.protocol import Start, format_protocol
+from src.protocol.protocol import Start, format_protocol
 
 # logging setting
 setup_logging()
