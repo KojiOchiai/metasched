@@ -7,17 +7,29 @@ install uv from following [this instruction](https://docs.astral.sh/uv/getting-s
 # install
 download
 ```bash
-git clone git@github.com:KojiOchiai/metasched.git
+git clone https://github.com/KojiOchiai/metasched.git
 ```
-install
+
+move directory
+```bash
+cd metasched
+```
+
+setup env
 ```bash
 uv sync
+```
+
+add path
+```bash
+export PYTHONPATH=$PYTHONPATH:.
 ```
 
 # オフライン実行
 
 ## protocolファイルを作成する
 - [protocol_8plates_fast.py](./sample/protocol_8plates_fast.py)を参考に実験手順ファイルを作成する
+- 新しくプロトコルを作る際は`protocols`フォルダを作りそこで編集する
 - start: Start が開始点になる。変数名は"start"固定
 
 ## 最適化だけして結果を見る
