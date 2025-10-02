@@ -128,10 +128,12 @@ class Protocol(BaseModel):
             )
         )
 
-    def add_new_labware(self, labware_type: LabwareType, prepare_to: str) -> None:
-        if labware_type in self.new_labware:
+    def add_new_labware(
+        self, name: str, labware_type: LabwareType, prepare_to: str
+    ) -> None:
+        if name in self.new_labware:
             raise ValueError(f"Labware type '{labware_type}' already exists.")
-        self.new_labware[labware_type.name] = NewLabware(
+        self.new_labware[name] = NewLabware(
             labware_type=labware_type, prepare_to=prepare_to
         )
 
@@ -313,5 +315,44 @@ class Experiment(BaseModel):
 if __name__ == "__main__":
     exp = Experiment(name="Test Experiment")
     exp.new_reagent_name("medium")
+    exp.new_reagent_name("trypsin")
+    exp.new_reagent_name("DMEM")
     exp.new_reagent_name("PBS")
-    print(exp)
+
+    medium_change = exp.new_protocol("medium_change", duration=timedelta(minutes=30))
+    medium_change.add_reagent(
+        labware_type=tube50ml,
+        reagent_name="medium",
+        volume=LiquidVolume(volume=20, unit="ml"),
+        prepare_to="tube_rack1/1",
+    )
+    medium_change.add_existing_labware(
+        name="sample1", labware_type=plate6well, prepare_to="LS/1"
+    )
+
+    passage = exp.new_protocol("passage", duration=timedelta(hours=1))
+    passage.add_reagent(
+        labware_type=tube50ml,
+        reagent_name="trypsin",
+        volume=LiquidVolume(volume=5, unit="ml"),
+        prepare_to="tube_rack1/1",
+    )
+    passage.add_reagent(
+        labware_type=tube50ml,
+        reagent_name="PBS",
+        volume=LiquidVolume(volume=20, unit="ml"),
+        prepare_to="tube_rack1/2",
+    )
+    passage.add_reagent(
+        labware_type=tube50ml,
+        reagent_name="DMEM",
+        volume=LiquidVolume(volume=20, unit="ml"),
+        prepare_to="tube_rack1/3",
+    )
+    passage.add_existing_labware(
+        name="cell_plate", labware_type=plate6well, prepare_to="LS/1"
+    )
+    passage.add_new_labware(
+        name="new_cell_plate", labware_type=plate6well, prepare_to="LS/2"
+    )
+    print(exp.model_dump_json(indent=2))
