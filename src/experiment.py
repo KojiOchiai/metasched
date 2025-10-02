@@ -234,9 +234,9 @@ class Experiment(BaseModel):
                 raise NotImplementedError(
                     "Currently only labware types with a single max volume are supported."
                 )
-            total_volume = sum(req.volume.to_ml() for req in reqs)
-            volumes = self.volume_list(
-                total_volume,
+            volume_list = [req.volume.to_ml() for req in reqs]
+            volumes = self.compress_list(
+                volume_list,
                 max(lv.to_ml() for lv in labware_type.max_volume),
                 labware_type.dead_volume.to_ml(),
             )
@@ -251,18 +251,24 @@ class Experiment(BaseModel):
             ]
         return summed
 
-    def volume_list(
-        self, total_volume: float, max_volume: float, dead_volume: float
+    def compress_list(
+        self, volume_list: list[float], max_volume: float, dead_volume: float
     ) -> list[float]:
-        volumes = []
-        while total_volume > 0:
-            if total_volume + dead_volume > max_volume:
-                volumes.append(max_volume)
-                total_volume -= max_volume - dead_volume
+        result: list[float] = []
+        current_sum = 0.0
+        for x in volume_list:
+            # if adding x does not exceed max_volume, add it to current_sum
+            if current_sum + x + dead_volume <= max_volume:
+                current_sum += x
             else:
-                volumes.append(total_volume + dead_volume)
-                total_volume = 0
-        return volumes
+                # if current_sum > 0: make new group
+                if current_sum > 0:
+                    result.append(current_sum + dead_volume)
+                current_sum = x
+        # add the last remaining
+        if current_sum > 0:
+            result.append(current_sum + dead_volume)
+        return result
 
 
 if __name__ == "__main__":
@@ -289,7 +295,7 @@ if __name__ == "__main__":
         name="medium",
         labware_type="tube50ml",
         reagent_name="medium",
-        volume=LiquidVolume(volume=30, unit="ml"),
+        volume=LiquidVolume(volume=20, unit="ml"),
         prepare_to="tube_rack1/1",
     )
     passage.add_reagent(
