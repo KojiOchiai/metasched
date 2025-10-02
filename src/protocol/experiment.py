@@ -89,7 +89,7 @@ class ExistingLabware(BaseLabware):
 class Protocol(BaseModel):
     experiment: "Experiment"
     protocol_name: str = Field(min_length=1, max_length=100)
-    reagent: list[Reagent] = Field(default_factory=list)
+    reagent: dict[str, Reagent] = Field(default_factory=dict)
     new_labware: dict[str, NewLabware] = Field(default_factory=dict)
     existing_labware: dict[str, ExistingLabware] = Field(default_factory=dict)
     duration: timedelta
@@ -98,7 +98,7 @@ class Protocol(BaseModel):
     def serialize_model(self) -> dict:
         data = {
             "protocol_name": self.protocol_name,
-            "reagent": [r.model_dump() for r in self.reagent],
+            "reagent": {k: v.model_dump() for k, v in self.reagent.items()},
             "new_labware": {k: v.model_dump() for k, v in self.new_labware.items()},
             "existing_labware": {
                 k: v.model_dump() for k, v in self.existing_labware.items()
@@ -110,22 +110,19 @@ class Protocol(BaseModel):
 
     def add_reagent(
         self,
+        name: str,
         labware_type: LabwareType,
         reagent_name: str,
         volume: LiquidVolume,
         prepare_to: str,
     ) -> None:
-        if reagent_name not in self.experiment.reagent_name:
-            raise ValueError(
-                f"Reagent name '{reagent_name}' not defined in experiment."
-            )
-        self.reagent.append(
-            Reagent(
-                labware_type=labware_type,
-                reagent_name=reagent_name,
-                volume=volume,
-                prepare_to=prepare_to,
-            )
+        if name not in self.experiment.reagent_name:
+            raise ValueError(f"Reagent name '{name}' not defined in experiment.")
+        self.reagent[name] = Reagent(
+            labware_type=labware_type,
+            reagent_name=reagent_name,
+            volume=volume,
+            prepare_to=prepare_to,
         )
 
     def add_new_labware(
@@ -249,9 +246,9 @@ class Experiment(BaseModel):
         return protocol
 
     def calc_resources(self) -> list[Reagent | NewLabware | ExistingLabware]:
-        reagents = []
+        reagents: list[Reagent] = []
         for protocol in self.protocols:
-            reagents.extend(protocol.reagent)
+            reagents.extend(protocol.reagent.values())
         grouped_reagents = self.group_reagents(reagents)
         summed_reagents = self.sum_reagent_volumes(grouped_reagents)
 
@@ -265,49 +262,56 @@ class Experiment(BaseModel):
 
     def group_reagents(
         self, reagents: list[Reagent]
-    ) -> dict[tuple[LabwareType, str], list[Reagent]]:
-        groups: dict[tuple[LabwareType, str], list[Reagent]] = {}
+    ) -> dict[tuple[str, str], list[Reagent]]:
+        groups: dict[tuple[str, str], list[Reagent]] = {}
 
         for reagent in reagents:
-            key = (reagent.labware_type, reagent.reagent_name)
+            key = (
+                reagent.labware_type.name,
+                reagent.reagent_name,
+            )
             if key not in groups:
                 groups[key] = []
             groups[key].append(reagent)
         return groups
 
     def sum_reagent_volumes(
-        self, reagents: dict[tuple[LabwareType, str], list[Reagent]]
-    ) -> dict[tuple[LabwareType, str], list[Reagent]]:
-        summed: dict[tuple[LabwareType, str], list[Reagent]] = {}
-        for (labware_type, reagent_name), reqs in reagents.items():
+        self, reagents: dict[tuple[str, str], list[Reagent]]
+    ) -> dict[tuple[str, str], list[Reagent]]:
+        summed: dict[tuple[str, str], list[Reagent]] = {}
+        for (_, reagent_name), reqs in reagents.items():
+            labware_type = reqs[0].labware_type
             if len(labware_type.max_volume) != 1:
                 raise NotImplementedError(
                     "Currently only labware types with a single max volume are supported."
                 )
             total_volume = sum(req.volume.to_ml() for req in reqs)
             volumes = self.volume_list(
-                total_volume + labware_type.dead_volume.to_ml(),
+                total_volume,
                 max(lv.to_ml() for lv in labware_type.max_volume),
+                labware_type.dead_volume.to_ml(),
             )
-            summed[(labware_type, reagent_name)] = [
+            summed[(labware_type.name, reagent_name)] = [
                 Reagent(
                     labware_type=labware_type,
                     reagent_name=reagent_name,
                     volume=LiquidVolume(volume=vol, unit="ml"),
-                    prepare_to=", ".join(req.prepare_to for req in reqs),
+                    prepare_to="",
                 )
                 for vol in volumes
             ]
         return summed
 
-    def volume_list(self, total_volume: float, max_volume: float) -> list[float]:
+    def volume_list(
+        self, total_volume: float, max_volume: float, dead_volume: float
+    ) -> list[float]:
         volumes = []
         while total_volume > 0:
-            if total_volume > max_volume:
+            if total_volume + dead_volume > max_volume:
                 volumes.append(max_volume)
-                total_volume -= max_volume
+                total_volume -= max_volume - dead_volume
             else:
-                volumes.append(total_volume)
+                volumes.append(total_volume + dead_volume)
                 total_volume = 0
         return volumes
 
@@ -321,6 +325,7 @@ if __name__ == "__main__":
 
     medium_change = exp.new_protocol("medium_change", duration=timedelta(minutes=30))
     medium_change.add_reagent(
+        name="medium",
         labware_type=tube50ml,
         reagent_name="medium",
         volume=LiquidVolume(volume=20, unit="ml"),
@@ -332,22 +337,32 @@ if __name__ == "__main__":
 
     passage = exp.new_protocol("passage", duration=timedelta(hours=1))
     passage.add_reagent(
+        name="medium",
         labware_type=tube50ml,
-        reagent_name="trypsin",
-        volume=LiquidVolume(volume=5, unit="ml"),
+        reagent_name="medium",
+        volume=LiquidVolume(volume=20, unit="ml"),
         prepare_to="tube_rack1/1",
     )
     passage.add_reagent(
+        name="trypsin",
         labware_type=tube50ml,
-        reagent_name="PBS",
-        volume=LiquidVolume(volume=20, unit="ml"),
+        reagent_name="trypsin",
+        volume=LiquidVolume(volume=5, unit="ml"),
         prepare_to="tube_rack1/2",
     )
     passage.add_reagent(
+        name="PBS",
+        labware_type=tube50ml,
+        reagent_name="PBS",
+        volume=LiquidVolume(volume=20, unit="ml"),
+        prepare_to="tube_rack1/3",
+    )
+    passage.add_reagent(
+        name="DMEM",
         labware_type=tube50ml,
         reagent_name="DMEM",
         volume=LiquidVolume(volume=20, unit="ml"),
-        prepare_to="tube_rack1/3",
+        prepare_to="tube_rack1/4",
     )
     passage.add_existing_labware(
         name="cell_plate", labware_type=plate6well, prepare_to="LS/1"
@@ -356,3 +371,6 @@ if __name__ == "__main__":
         name="new_cell_plate", labware_type=plate6well, prepare_to="LS/2"
     )
     print(exp.model_dump_json(indent=2))
+    resources = exp.calc_resources()
+    for res in resources:
+        print(res.model_dump_json(indent=2))
