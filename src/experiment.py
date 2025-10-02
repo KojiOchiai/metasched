@@ -107,7 +107,7 @@ class Protocol(BaseModel):
             duration=self.duration,
             args=kwds,
         )
-        self.experiment.scenario.append(call)
+        self.experiment.protocol_calls.append(call)
         return call
 
 
@@ -128,7 +128,7 @@ class ProtocolCall(Protocol):
         if set(self.args.keys()) != set(self.existing_labware.keys()):
             raise ValueError("Arguments do not match existing labware names.")
 
-    def get(self, name: str) -> ParentLabware:
+    def get(self, name: str) -> ParentLabware | None:
         if name in self.existing_labware:
             return ParentLabware(
                 protocol_id=self.id,
@@ -141,7 +141,7 @@ class ProtocolCall(Protocol):
                 labware_label=name,
                 labware_type=self.new_labware[name].labware_type,
             )
-        raise ValueError(f"Labware name '{name}' not found in protocol.")
+        return None
 
 
 class Store(BaseModel):
@@ -164,7 +164,8 @@ class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     reagent_name: list[str] = Field(default_factory=list)
     protocols: list[Protocol] = Field(default_factory=list)
-    scenario: list[ProtocolCall | Store] = Field(default_factory=list)
+    protocol_calls: list[ProtocolCall] = Field(default_factory=list)
+    stores: list[Store] = Field(default_factory=list)
 
     def __post__init__(self):
         if len(set(self.reagent_name)) != len(self.reagent_name):
@@ -185,6 +186,26 @@ class Experiment(BaseModel):
         )
         self.protocols.append(protocol)
         return protocol
+
+    def store(
+        self, type: StoreType, duration: timedelta, labware: dict[str, ParentLabware]
+    ):
+        protocol_calls = {p.id: p for p in self.protocol_calls}
+        for name, lw in labware.items():
+            if lw.protocol_id not in protocol_calls:
+                raise ValueError(f"Protocol call ID '{lw.protocol_id}' not found.")
+            protocol_call = protocol_calls[lw.protocol_id]
+            labware_def = protocol_call.get(name)
+            if labware_def is None:
+                raise ValueError(f"Labware name '{name}' not found in protocol call.")
+            if labware_def.labware_type != lw.labware_type:
+                raise ValueError(
+                    f"Labware type mismatch for '{name}': "
+                    f"expected '{labware_def.labware_type}', got '{lw.labware_type}'."
+                )
+        store = Store(type=type, duration=duration, args=labware)
+        self.stores.append(store)
+        return store
 
     def calc_resources(
         self, labware_types: dict[str, LabwareType]
@@ -325,6 +346,7 @@ if __name__ == "__main__":
     passage.add_new_labware(
         name="new_cell_plate", labware_type="plate6well", prepare_to="LS/2"
     )
+
     print(exp.model_dump_json(indent=2))
 
     print("")
