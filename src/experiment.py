@@ -321,6 +321,7 @@ if __name__ == "__main__":
     )
     print(exp.model_dump_json(indent=2))
 
+    print("")
     from src.labware import labware_types
 
     reagents = exp.calc_resources({lt.name: lt for lt in labware_types})
