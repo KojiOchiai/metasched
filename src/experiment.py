@@ -125,10 +125,6 @@ class ProtocolCall(ScenarioNode):
     started_time: datetime | None = None
     finished_time: datetime | None = None
 
-    def __post_init__(self):
-        if set(self.args.keys()) != set(self.protocol.existing_labware.keys()):
-            raise ValueError("Arguments do not match existing labware names.")
-
     def get(self, name: str) -> ParentLabware:
         if name in self.protocol.existing_labware:
             return ParentLabware(
