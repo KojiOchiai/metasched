@@ -340,12 +340,16 @@ class Experiment(BaseModel):
 
 
 if __name__ == "__main__":
+    # define experiment
     exp = Experiment(name="Test Experiment")
+
+    # define reagent names
     exp.new_reagent_name("medium")
     exp.new_reagent_name("trypsin")
     exp.new_reagent_name("DMEM")
     exp.new_reagent_name("PBS")
 
+    # define protocols
     medium_change = exp.new_protocol("medium_change", duration=timedelta(minutes=30))
     medium_change.add_reagent(
         name="medium",
@@ -394,7 +398,7 @@ if __name__ == "__main__":
         name="new_cell_plate", labware_type="plate6well", prepare_to="LS/2"
     )
 
-    # scenario
+    # define scenario
     cell_plate = exp.move_in(labware_type="plate6well")
     mc1 = medium_change(cell_plate=cell_plate)
     exp.store(
