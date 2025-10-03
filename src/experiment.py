@@ -108,17 +108,19 @@ class Protocol(BaseModel):
 
 
 class ParentLabware(BaseModel):
-    protocol_id: UUID = Field(default_factory=uuid4)
+    node_id: UUID = Field(default_factory=uuid4)
     labware_label: str = Field(min_length=1, max_length=100)
     labware_type: str
 
+
 class ScenarioNode(BaseModel):
     id: UUID = Field(default_factory=uuid4)
-    args: dict[str, ParentLabware] = Field(default_factory=dict)
     duration: timedelta
+
 
 class ProtocolCall(ScenarioNode):
     protocol: Protocol
+    args: dict[str, ParentLabware] = Field(default_factory=dict)
     scheduled_time: datetime | None = None
     started_time: datetime | None = None
     finished_time: datetime | None = None
@@ -127,50 +129,51 @@ class ProtocolCall(ScenarioNode):
         if set(self.args.keys()) != set(self.protocol.existing_labware.keys()):
             raise ValueError("Arguments do not match existing labware names.")
 
-    def get(self, name: str) -> ParentLabware | None:
+    def get(self, name: str) -> ParentLabware:
         if name in self.protocol.existing_labware:
             return ParentLabware(
-                protocol_id=self.id,
+                node_id=self.id,
                 labware_label=name,
                 labware_type=self.protocol.existing_labware[name].labware_type,
             )
         if name in self.protocol.new_labware:
             return ParentLabware(
-                protocol_id=self.id,
+                node_id=self.id,
                 labware_label=name,
                 labware_type=self.protocol.new_labware[name].labware_type,
             )
-        return None
+        raise ValueError(f"Labware name '{name}' not found in protocol.")
 
 
 class Store(ScenarioNode):
     type: StoreType
+    labware: ParentLabware
 
-    def get(self, name: str) -> ParentLabware:
-        if name not in self.args:
-            raise ValueError(f"Labware name '{name}' not found in store.")
+    def get(self) -> ParentLabware:
         return ParentLabware(
-            protocol_id=self.id,
-            labware_label=name,
-            labware_type=self.args[name].labware_type,
+            node_id=self.id,
+            labware_label=self.labware.labware_label,
+            labware_type=self.labware.labware_type,
         )
 
 
-class Move(ScenarioNode):
-    def get(self, name: str) -> ParentLabware:
-        if name not in self.args:
-            raise ValueError(f"Labware name '{name}' not found in move in.")
+class MoveIn(ScenarioNode):
+    labware_type: str
+
+    def get(self) -> ParentLabware:
         return ParentLabware(
-            protocol_id=self.id,
-            labware_label=name,
-            labware_type=self.args[name].labware_type,
+            node_id=self.id,
+            labware_label=f"move_in_{self.labware_type}",
+            labware_type=self.labware_type,
         )
 
-class MoveIn(Move):
-    pass
 
-class MoveOut(Move):
-    pass
+class MoveOut(ScenarioNode):
+    labware: ParentLabware
+
+    def get(self) -> None:
+        return None
+
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -200,50 +203,67 @@ class Experiment(BaseModel):
         )
         self.protocols.append(protocol)
         return protocol
-    
-    def get_scenario_nodes(self) -> list[ScenarioNode]:
+
+    def get_scenario_nodes(self) -> list[ProtocolCall | Store | MoveIn | MoveOut]:
         return self.protocol_calls + self.stores + self.moves_in + self.moves_out
-    
-    def check_labware(self, labware: dict[str, ParentLabware]) -> None:
-        protocol_calls = {p.id: p for p in self.protocol_calls}
-        for name, lw in labware.items():
-            if lw.protocol_id not in protocol_calls:
-                raise ValueError(f"Protocol call ID '{lw.protocol_id}' not found.")
-            protocol_call = protocol_calls[lw.protocol_id]
-            labware_def = protocol_call.get(name)
+
+    def check_parent_labware(self, labware: ParentLabware) -> None:
+        nodes = {p.id: p for p in self.get_scenario_nodes()}
+        if labware.node_id not in nodes:
+            raise ValueError(f"Node ID '{labware.node_id}' not found.")
+        node = nodes[labware.node_id]
+        if isinstance(node, ProtocolCall):
+            labware_def = node.get(labware.labware_label)
             if labware_def is None:
-                raise ValueError(f"Labware name '{name}' not found in protocol call.")
-            if labware_def.labware_type != lw.labware_type:
                 raise ValueError(
-                    f"Labware type mismatch for '{name}': "
-                    f"expected '{labware_def.labware_type}', got '{lw.labware_type}'."
+                    f"Labware name '{labware.labware_label}' not found in protocol call."
+                )
+            if labware_def.labware_type != labware.labware_type:
+                raise ValueError(
+                    f"Labware type mismatch for '{labware.labware_label}': "
+                    f"expected '{labware_def.labware_type}', got '{labware.labware_type}'."
+                )
+        if isinstance(node, Store) or isinstance(node, MoveOut):
+            if node.labware.labware_label != labware.labware_label:
+                raise ValueError(
+                    f"Labware label mismatch: expected '{node.labware.labware_label}', "
+                    f"got '{labware.labware_label}'."
+                )
+            if node.labware.labware_type != labware.labware_type:
+                raise ValueError(
+                    f"Labware type mismatch for '{labware.labware_label}': "
+                    f"expected '{node.labware.labware_type}', got '{labware.labware_type}'."
                 )
 
-    def store(
-        self, type: StoreType, duration: timedelta, labware: dict[str, ParentLabware]
-    ):
-        self.check_labware(labware)
-        store = Store(type=type, duration=duration, args=labware)
+    def store(self, type: StoreType, duration: timedelta, labware: ParentLabware):
+        self.check_parent_labware(labware)
+        store = Store(type=type, duration=duration, labware=labware)
         self.stores.append(store)
-        return store
-    
-    def move_in(self, duration: timedelta, labware_type: str):
+        return store.get()
+
+    def move_in(self, labware_type: str, duration: timedelta = timedelta(minutes=3)):
         move_in = MoveIn(labware_type=labware_type, duration=duration)
         self.moves_in.append(move_in)
-        return move_in
+        return move_in.get()
 
-    def move_out(self, duration: timedelta, labware: dict[str, ParentLabware]):
-        self.check_labware(labware)
-        move_out = MoveOut(duration=duration, args=labware)
+    def move_out(
+        self,
+        labware: ParentLabware,
+        duration: timedelta = timedelta(minutes=3),
+    ):
+        self.check_parent_labware(labware)
+        move_out = MoveOut(duration=duration, labware=labware)
         self.moves_out.append(move_out)
-        return move_out
+        return move_out.get()
 
     def calc_resources(
         self, labware_types: dict[str, LabwareType]
     ) -> list[Reagent | NewLabware | ExistingLabware]:
         reagents: list[Reagent] = []
-        for protocol in self.protocols:
-            reagents.extend(protocol.reagent.values())
+        for protocol_call in self.get_scenario_nodes():
+            if not isinstance(protocol_call, ProtocolCall):
+                continue
+            reagents.extend(protocol_call.protocol.reagent.values())
         grouped_reagents = self.group_reagents(reagents)
         summed_reagents = self.sum_reagent_volumes(grouped_reagents, labware_types)
 
@@ -339,7 +359,7 @@ if __name__ == "__main__":
         prepare_to="tube_rack1/1",
     )
     medium_change.add_existing_labware(
-        name="sample1", labware_type="plate6well", prepare_to="LS/1"
+        name="cell_plate", labware_type="plate6well", prepare_to="LS/1"
     )
 
     passage = exp.new_protocol("passage", duration=timedelta(hours=1))
@@ -377,6 +397,14 @@ if __name__ == "__main__":
     passage.add_new_labware(
         name="new_cell_plate", labware_type="plate6well", prepare_to="LS/2"
     )
+
+    # scenario
+    cell_plate = exp.move_in(labware_type="plate6well")
+    mc1 = medium_change(cell_plate=cell_plate)
+    exp.store(
+        type="warm_30", duration=timedelta(hours=24), labware=mc1.get("cell_plate")
+    )
+    passage1 = passage(cell_plate=cell_plate)
 
     print(exp.model_dump_json(indent=2))
 
