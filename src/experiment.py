@@ -99,11 +99,7 @@ class Protocol(BaseModel):
                     f"got '{labware.labware_type}'."
                 )
         call = ProtocolCall(
-            experiment=self.experiment,
-            protocol_name=self.protocol_name,
-            reagent=self.reagent,
-            new_labware=self.new_labware,
-            existing_labware=self.existing_labware,
+            protocol=self,
             duration=self.duration,
             args=kwds,
         )
@@ -116,49 +112,65 @@ class ParentLabware(BaseModel):
     labware_label: str = Field(min_length=1, max_length=100)
     labware_type: str
 
-
-class ProtocolCall(Protocol):
+class ScenarioNode(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     args: dict[str, ParentLabware] = Field(default_factory=dict)
+    duration: timedelta
+
+class ProtocolCall(ScenarioNode):
+    protocol: Protocol
     scheduled_time: datetime | None = None
     started_time: datetime | None = None
     finished_time: datetime | None = None
 
     def __post_init__(self):
-        if set(self.args.keys()) != set(self.existing_labware.keys()):
+        if set(self.args.keys()) != set(self.protocol.existing_labware.keys()):
             raise ValueError("Arguments do not match existing labware names.")
 
     def get(self, name: str) -> ParentLabware | None:
-        if name in self.existing_labware:
+        if name in self.protocol.existing_labware:
             return ParentLabware(
                 protocol_id=self.id,
                 labware_label=name,
-                labware_type=self.existing_labware[name].labware_type,
+                labware_type=self.protocol.existing_labware[name].labware_type,
             )
-        if name in self.new_labware:
+        if name in self.protocol.new_labware:
             return ParentLabware(
                 protocol_id=self.id,
                 labware_label=name,
-                labware_type=self.new_labware[name].labware_type,
+                labware_type=self.protocol.new_labware[name].labware_type,
             )
         return None
 
 
-class Store(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    args: dict[str, ParentLabware] = Field(default_factory=dict)
+class Store(ScenarioNode):
     type: StoreType
-    duration: timedelta
 
     def get(self, name: str) -> ParentLabware:
-        if name in self.args:
-            return ParentLabware(
-                protocol_id=self.id,
-                labware_label=name,
-                labware_type=self.args[name].labware_type,
-            )
-        raise ValueError(f"Labware name '{name}' not found in store.")
+        if name not in self.args:
+            raise ValueError(f"Labware name '{name}' not found in store.")
+        return ParentLabware(
+            protocol_id=self.id,
+            labware_label=name,
+            labware_type=self.args[name].labware_type,
+        )
 
+
+class Move(ScenarioNode):
+    def get(self, name: str) -> ParentLabware:
+        if name not in self.args:
+            raise ValueError(f"Labware name '{name}' not found in move in.")
+        return ParentLabware(
+            protocol_id=self.id,
+            labware_label=name,
+            labware_type=self.args[name].labware_type,
+        )
+
+class MoveIn(Move):
+    pass
+
+class MoveOut(Move):
+    pass
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -166,6 +178,8 @@ class Experiment(BaseModel):
     protocols: list[Protocol] = Field(default_factory=list)
     protocol_calls: list[ProtocolCall] = Field(default_factory=list)
     stores: list[Store] = Field(default_factory=list)
+    moves_in: list[MoveIn] = Field(default_factory=list)
+    moves_out: list[MoveOut] = Field(default_factory=list)
 
     def __post__init__(self):
         if len(set(self.reagent_name)) != len(self.reagent_name):
@@ -186,10 +200,11 @@ class Experiment(BaseModel):
         )
         self.protocols.append(protocol)
         return protocol
-
-    def store(
-        self, type: StoreType, duration: timedelta, labware: dict[str, ParentLabware]
-    ):
+    
+    def get_scenario_nodes(self) -> list[ScenarioNode]:
+        return self.protocol_calls + self.stores + self.moves_in + self.moves_out
+    
+    def check_labware(self, labware: dict[str, ParentLabware]) -> None:
         protocol_calls = {p.id: p for p in self.protocol_calls}
         for name, lw in labware.items():
             if lw.protocol_id not in protocol_calls:
@@ -203,9 +218,25 @@ class Experiment(BaseModel):
                     f"Labware type mismatch for '{name}': "
                     f"expected '{labware_def.labware_type}', got '{lw.labware_type}'."
                 )
+
+    def store(
+        self, type: StoreType, duration: timedelta, labware: dict[str, ParentLabware]
+    ):
+        self.check_labware(labware)
         store = Store(type=type, duration=duration, args=labware)
         self.stores.append(store)
         return store
+    
+    def move_in(self, duration: timedelta, labware_type: str):
+        move_in = MoveIn(labware_type=labware_type, duration=duration)
+        self.moves_in.append(move_in)
+        return move_in
+
+    def move_out(self, duration: timedelta, labware: dict[str, ParentLabware]):
+        self.check_labware(labware)
+        move_out = MoveOut(duration=duration, args=labware)
+        self.moves_out.append(move_out)
+        return move_out
 
     def calc_resources(
         self, labware_types: dict[str, LabwareType]
