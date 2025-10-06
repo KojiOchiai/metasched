@@ -28,18 +28,21 @@ export PYTHONPATH=$PYTHONPATH:.
 # オフライン実行
 
 ## protocolファイルを作成する
-- [protocol_8plates_fast.py](./sample/protocol_8plates_fast.py)を参考に実験手順ファイルを作成する
+```bash
+cp sample_protocols protocols
+```
 - 新しくプロトコルを作る際は`protocols`フォルダを作りそこで編集する
+- [protocol_8plates_fast.py](./sample_protocols/protocol_8plates_fast.py)を参考に実験手順ファイルを作成する
 - start: Start が開始点になる。変数名は"start"固定
 
 ## 最適化だけして結果を見る
 ```bash
-uv run scripts/optimize.py --protocolfile sample/protocol_parallel_fast.py --buffer 3
+uv run scripts/optimize.py --protocolfile protocols/protocol_parallel_fast.py --buffer 3
 ```
 
 ## 実行
 ```bash
-uv run scripts/execute.py --protocolfile sample/protocol_parallel_fast.py --buffer 3
+uv run scripts/execute.py --protocolfile protocols/protocol_parallel_fast.py --buffer 3
 ```
 bufferにはprotocolの間に最低限開けて欲しい秒数を指定する
 
