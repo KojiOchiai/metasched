@@ -1,10 +1,11 @@
 from datetime import timedelta
+from typing import Any, get_args
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_serializer
 
 from src.labware import LabwareType
-from src.value_object import LiquidVolume
+from src.value_object import LiquidVolume, StoreType
 
 
 class Requirement(BaseModel):
@@ -23,6 +24,7 @@ class Reagent(Requirement):
 
 class Protocol(BaseModel):
     protocol_name: str = Field(min_length=1, max_length=100)
+    args: dict[str, type | list[str]] = Field(default_factory=dict)
     reagent: list[Reagent]
     new_labware: dict[str, Labware]
     existing_labware: dict[str, Labware]
@@ -60,9 +62,14 @@ class Protocol(BaseModel):
                 raise ValueError(f"Labware type '{el.labware_type}' not found.")
 
     @classmethod
-    def builder(cls, protocol_name: str, duration: timedelta) -> "ProtocolBuilder":
+    def builder(
+        cls,
+        protocol_name: str,
+        duration: timedelta,
+        args: dict[str, type | list[str]] = {},
+    ) -> "ProtocolBuilder":
         """Create a new ProtocolBuilder instance"""
-        return ProtocolBuilder(protocol_name, duration)
+        return ProtocolBuilder(protocol_name, duration, args)
 
     def get_input_ports(self) -> list[str]:
         return list(self.existing_labware.keys())
@@ -76,13 +83,20 @@ class ProtocolBuilder:
 
     protocol_name: str
     duration: timedelta
+    args: dict[str, type | list[str]]
     _reagent: list[Reagent]
     _new_labware: dict[str, Labware]
     _existing_labware: dict[str, Labware]
 
-    def __init__(self, protocol_name: str, duration: timedelta):
+    def __init__(
+        self,
+        protocol_name: str,
+        duration: timedelta,
+        args: dict[str, type | list[str]] = {},
+    ):
         self.protocol_name = protocol_name
         self.duration = duration
+        self.args = args
         self._reagent = []
         self._new_labware = {}
         self._existing_labware = {}
@@ -136,6 +150,7 @@ class ProtocolBuilder:
         """Build and return the final Protocol object"""
         return Protocol(
             protocol_name=self.protocol_name,
+            args=self.args,
             reagent=self._reagent,
             new_labware=self._new_labware,
             existing_labware=self._existing_labware,
@@ -145,6 +160,7 @@ class ProtocolBuilder:
 
 class Node(BaseModel):
     protocol_name: str
+    args: dict[str, Any] = Field(default_factory=dict)
     id: UUID = Field(default_factory=uuid4)
 
     class Config:
@@ -263,7 +279,11 @@ class ExperimentBuilder:
             raise ValueError(f"Labware type '{labware_type}' not found.")
         number = len(self._protocols) + 1
         store = (
-            Protocol.builder(f"store_{number}", duration)
+            Protocol.builder(
+                f"store_{number}",
+                duration,
+                args={"store_type": list(get_args(StoreType))},
+            )
             .existing_labware("labware", labware_type, prepare_to="")
             .build()
         )
@@ -279,17 +299,42 @@ class ExperimentBuilder:
         return self.add_node(protocol.protocol_name)
 
     def store(
-        self, labware_type: str, duration: timedelta = timedelta(minutes=5)
+        self, labware_type: str, duration: timedelta, store_type: StoreType
     ) -> Node:
         protocol = self.store_protocol(labware_type, duration)
-        return self.add_node(protocol.protocol_name)
+        return self.add_node(protocol.protocol_name, args={"store_type": store_type})
 
     def check_node(self, node: Node) -> None:
         if node not in self._nodes:
             raise ValueError(f"Node '{node.id}' not found in experiment.")
+        protocol = self.get_protocol(node.protocol_name)
+        # check args
+        for arg_name, arg_type in protocol.args.items():
+            print(get_args(arg_type))
+            if arg_name not in node.args:
+                raise ValueError(
+                    f"Missing argument '{arg_name}' for node '{node.id}' "
+                    f"of protocol '{protocol.protocol_name}'."
+                )
+            if isinstance(arg_type, list):
+                if node.args[arg_name] not in arg_type:
+                    raise ValueError(
+                        f"Argument '{arg_name}' for node '{node.id}' "
+                        f"of protocol '{protocol.protocol_name}' must be in {arg_type}, "
+                        f"but got '{node.args[arg_name]}'."
+                    )
+            else:
+                if not isinstance(node.args[arg_name], arg_type):
+                    raise ValueError(
+                        f"Argument '{arg_name}' for node '{node.id}' "
+                        f"of protocol '{protocol.protocol_name}' must be of type {get_args(arg_type)}, "
+                        f"but got '{type(node.args[arg_name]).__name__}'."
+                    )
 
-    def add_node(self, protocol_name: str) -> Node:
-        node = Node(protocol_name=protocol_name)
+    def add_node(self, protocol_name: str, args: dict[str, Any] | None = None) -> Node:
+        if args is None:
+            args = {}
+        node = Node(protocol_name=protocol_name, args=args)
         self._nodes.append(node)
         return node
 
@@ -399,10 +444,17 @@ if __name__ == "__main__":
     medium_change_3 = exb.add_node("medium_change")
     passage_1 = exb.add_node("passage")
     move_out_1 = exb.move_out("plate6well")
+    store_1 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
+    store_2 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
+    store_3 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
+    store_4 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
     exb.add_edge(move_in_1, "labware", medium_change_1, "cell_plate")
-    exb.add_edge(medium_change_1, "cell_plate", medium_change_2, "cell_plate")
-    exb.add_edge(medium_change_2, "cell_plate", passage_1, "cell_plate")
-    exb.add_edge(passage_1, "new_cell_plate", medium_change_3, "cell_plate")
+    exb.add_edge(medium_change_1, "cell_plate", store_1, "labware")
+    exb.add_edge(store_1, "labware", medium_change_2, "cell_plate")
+    exb.add_edge(medium_change_2, "cell_plate", store_2, "labware")
+    exb.add_edge(store_2, "labware", passage_1, "cell_plate")
+    exb.add_edge(passage_1, "new_cell_plate", store_3, "labware")
+    exb.add_edge(store_3, "labware", medium_change_3, "cell_plate")
     exb.add_edge(medium_change_3, "cell_plate", move_out_1, "labware")
     experiment = exb.build()
 
