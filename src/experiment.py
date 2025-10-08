@@ -8,32 +8,24 @@ from src.value_object import LiquidVolume
 
 
 class Requirement(BaseModel):
+    labware_type: str
     prepare_to: str
 
 
+class Labware(Requirement):
+    pass
+
+
 class Reagent(Requirement):
-    labware_type: str
     reagent_name: str
     volume: LiquidVolume
-
-
-class BaseLabware(Requirement):
-    labware_type: str
-
-
-class NewLabware(BaseLabware):
-    pass
-
-
-class ExistingLabware(BaseLabware):
-    pass
 
 
 class Protocol(BaseModel):
     protocol_name: str = Field(min_length=1, max_length=100)
     reagent: list[Reagent]
-    new_labware: dict[str, NewLabware]
-    existing_labware: dict[str, ExistingLabware]
+    new_labware: dict[str, Labware]
+    existing_labware: dict[str, Labware]
     duration: timedelta
 
     class Config:
@@ -85,8 +77,8 @@ class ProtocolBuilder:
     protocol_name: str
     duration: timedelta
     _reagent: list[Reagent]
-    _new_labware: dict[str, NewLabware]
-    _existing_labware: dict[str, ExistingLabware]
+    _new_labware: dict[str, Labware]
+    _existing_labware: dict[str, Labware]
 
     def __init__(self, protocol_name: str, duration: timedelta):
         self.protocol_name = protocol_name
@@ -122,7 +114,7 @@ class ProtocolBuilder:
         """Add a new labware requirement to the protocol"""
         if name in self._new_labware:
             raise ValueError(f"Duplicate new labware name '{name}' found.")
-        self._new_labware[name] = NewLabware(
+        self._new_labware[name] = Labware(
             labware_type=labware_type,
             prepare_to=prepare_to,
         )
@@ -134,7 +126,7 @@ class ProtocolBuilder:
         """Add an existing labware requirement to the protocol"""
         if name in self._existing_labware:
             raise ValueError(f"Duplicate existing labware name '{name}' found.")
-        self._existing_labware[name] = ExistingLabware(
+        self._existing_labware[name] = Labware(
             labware_type=labware_type,
             prepare_to=prepare_to,
         )
@@ -239,6 +231,58 @@ class ExperimentBuilder:
         if protocol is None:
             raise ValueError(f"Protocol '{protocol_name}' not found in experiment.")
         return protocol
+
+    def move_in_protocol(self, labware_type: str) -> Protocol:
+        if labware_type not in [lt.name for lt in self._labware_types]:
+            raise ValueError(f"Labware type '{labware_type}' not found.")
+        number = len(self._protocols) + 1
+        move_in = (
+            Protocol.builder(f"move_in_{number}", timedelta(minutes=5))
+            .new_labware("labware", labware_type, prepare_to="")
+            .build()
+        )
+        self._protocols.append(move_in)
+        return move_in
+
+    def move_out_protocol(self, labware_type: str) -> Protocol:
+        if labware_type not in [lt.name for lt in self._labware_types]:
+            raise ValueError(f"Labware type '{labware_type}' not found.")
+        number = len(self._protocols) + 1
+        move_out = (
+            Protocol.builder(f"move_out_{number}", timedelta(minutes=5))
+            .existing_labware("labware", labware_type, prepare_to="")
+            .build()
+        )
+        self._protocols.append(move_out)
+        return move_out
+
+    def store_protocol(
+        self, labware_type: str, duration: timedelta = timedelta(minutes=5)
+    ) -> Protocol:
+        if labware_type not in [lt.name for lt in self._labware_types]:
+            raise ValueError(f"Labware type '{labware_type}' not found.")
+        number = len(self._protocols) + 1
+        store = (
+            Protocol.builder(f"store_{number}", duration)
+            .existing_labware("labware", labware_type, prepare_to="")
+            .build()
+        )
+        self._protocols.append(store)
+        return store
+
+    def move_in(self, labware_type: str) -> Node:
+        protocol = self.move_in_protocol(labware_type)
+        return self.add_node(protocol.protocol_name)
+
+    def move_out(self, labware_type: str) -> Node:
+        protocol = self.move_out_protocol(labware_type)
+        return self.add_node(protocol.protocol_name)
+
+    def store(
+        self, labware_type: str, duration: timedelta = timedelta(minutes=5)
+    ) -> Node:
+        protocol = self.store_protocol(labware_type, duration)
+        return self.add_node(protocol.protocol_name)
 
     def check_node(self, node: Node) -> None:
         if node not in self._nodes:
@@ -349,13 +393,17 @@ if __name__ == "__main__":
         .labware_types(*labware_types)
         .protocols(medium_change, passage)
     )
+    move_in_1 = exb.move_in("plate6well")
     medium_change_1 = exb.add_node("medium_change")
     medium_change_2 = exb.add_node("medium_change")
     medium_change_3 = exb.add_node("medium_change")
     passage_1 = exb.add_node("passage")
+    move_out_1 = exb.move_out("plate6well")
+    exb.add_edge(move_in_1, "labware", medium_change_1, "cell_plate")
     exb.add_edge(medium_change_1, "cell_plate", medium_change_2, "cell_plate")
     exb.add_edge(medium_change_2, "cell_plate", passage_1, "cell_plate")
     exb.add_edge(passage_1, "new_cell_plate", medium_change_3, "cell_plate")
+    exb.add_edge(medium_change_3, "cell_plate", move_out_1, "labware")
     experiment = exb.build()
 
     experiment_json = experiment.model_dump_json(indent=2)
