@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 
 import pint
@@ -28,3 +29,13 @@ class LiquidVolume(BaseModel):
 
     def to_ml(self) -> float:
         return self.to_pint().to(ureg.ml).magnitude
+
+    @classmethod
+    def from_string(cls, s: str) -> "LiquidVolume":
+        # e.g. "20ml", "1.5l", "300ul"
+        s = s.strip().lower()
+        match = re.match(r"^([\d.]+)\s*(l|ml|ul)$", s)
+        if not match:
+            raise ValueError(f"Invalid liquid volume string '{s}'")
+        volume, unit = match.groups()
+        return cls(volume=float(volume), unit=unit)  # type: ignore
