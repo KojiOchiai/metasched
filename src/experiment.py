@@ -31,7 +31,7 @@ class ExistingLabware(BaseLabware):
 
 class Protocol(BaseModel):
     protocol_name: str = Field(min_length=1, max_length=100)
-    reagent: dict[str, Reagent]
+    reagent: list[Reagent]
     new_labware: dict[str, NewLabware]
     existing_labware: dict[str, ExistingLabware]
     duration: timedelta
@@ -43,7 +43,7 @@ class Protocol(BaseModel):
     def serialize_model(self) -> dict:
         data = {
             "protocol_name": self.protocol_name,
-            "reagent": {k: v.model_dump() for k, v in self.reagent.items()},
+            "reagent": [r.model_dump() for r in self.reagent],
             "new_labware": {k: v.model_dump() for k, v in self.new_labware.items()},
             "existing_labware": {
                 k: v.model_dump() for k, v in self.existing_labware.items()
@@ -55,7 +55,7 @@ class Protocol(BaseModel):
     def validate_requirements(
         self, labware_types: dict[str, LabwareType], reagent_names: list[str]
     ) -> None:
-        for r in self.reagent.values():
+        for r in self.reagent:
             if r.labware_type not in labware_types:
                 raise ValueError(f"Labware type '{r.labware_type}' not found.")
             if r.reagent_name not in reagent_names:
@@ -84,14 +84,14 @@ class ProtocolBuilder:
 
     protocol_name: str
     duration: timedelta
-    _reagent: dict[str, Reagent]
+    _reagent: list[Reagent]
     _new_labware: dict[str, NewLabware]
     _existing_labware: dict[str, ExistingLabware]
 
     def __init__(self, protocol_name: str, duration: timedelta):
         self.protocol_name = protocol_name
         self.duration = duration
-        self._reagent = {}
+        self._reagent = []
         self._new_labware = {}
         self._existing_labware = {}
 
@@ -106,11 +106,13 @@ class ProtocolBuilder:
         name = name or reagent_name
         if name in self._reagent:
             raise ValueError(f"Duplicate reagent name '{name}' found.")
-        self._reagent[name] = Reagent(
-            labware_type=labware_type,
-            reagent_name=reagent_name,
-            volume=LiquidVolume.from_string(volume),
-            prepare_to=prepare_to,
+        self._reagent.append(
+            Reagent(
+                labware_type=labware_type,
+                reagent_name=reagent_name,
+                volume=LiquidVolume.from_string(volume),
+                prepare_to=prepare_to,
+            )
         )
         return self
 
