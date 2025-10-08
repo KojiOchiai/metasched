@@ -332,9 +332,11 @@ if __name__ == "__main__":
     )
     medium_change_1 = exb.add_node("medium_change")
     medium_change_2 = exb.add_node("medium_change")
+    medium_change_3 = exb.add_node("medium_change")
     passage_1 = exb.add_node("passage")
     exb.add_edge(medium_change_1, "cell_plate", medium_change_2, "cell_plate")
     exb.add_edge(medium_change_2, "cell_plate", passage_1, "cell_plate")
+    exb.add_edge(passage_1, "new_cell_plate", medium_change_3, "cell_plate")
     experiment = exb.build()
 
     print(experiment.model_dump_json(indent=2))
