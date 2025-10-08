@@ -358,4 +358,6 @@ if __name__ == "__main__":
     exb.add_edge(passage_1, "new_cell_plate", medium_change_3, "cell_plate")
     experiment = exb.build()
 
+    experiment_json = experiment.model_dump_json(indent=2)
+    experiment_reconstructed = Experiment.model_validate_json(experiment_json)
     print(experiment.model_dump_json(indent=2))
