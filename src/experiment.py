@@ -1,4 +1,5 @@
 from datetime import timedelta
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_serializer
 
@@ -71,6 +72,12 @@ class Protocol(BaseModel):
         """Create a new ProtocolBuilder instance"""
         return ProtocolBuilder(protocol_name, duration)
 
+    def get_input_ports(self) -> list[str]:
+        return list(self.existing_labware.keys())
+
+    def get_output_ports(self) -> list[str]:
+        return list(self.new_labware.keys()) + list(self.existing_labware.keys())
+
 
 class ProtocolBuilder:
     """Builder class for creating Protocol objects"""
@@ -142,11 +149,31 @@ class ProtocolBuilder:
         )
 
 
+class Node(BaseModel):
+    protocol_name: str
+    id: UUID = Field(default_factory=uuid4)
+
+    class Config:
+        frozen = True
+
+
+class Edge(BaseModel):
+    from_node: UUID
+    from_port: str
+    to_node: UUID
+    to_port: str
+
+    class Config:
+        frozen = True
+
+
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     reagent_names: list[str] = Field(default_factory=list)
     labware_types: list[LabwareType] = Field(default_factory=list)
     protocols: list[Protocol] = Field(default_factory=list)
+    nodes: list[Node] = Field(default_factory=list)
+    edges: list[Edge] = Field(default_factory=list)
 
     class Config:
         frozen = True
@@ -168,12 +195,16 @@ class ExperimentBuilder:
     _reagent_names: list[str]
     _labware_types: list[LabwareType]
     _protocols: list[Protocol]
+    _nodes: list[Node]
+    _edges: list[Edge]
 
     def __init__(self, name: str):
         self.name = name
         self._reagent_names = []
         self._labware_types = []
         self._protocols = []
+        self._nodes = []
+        self._edges = []
 
     def reagent_names(self, *name: str) -> "ExperimentBuilder":
         """Add reagent names to the experiment"""
@@ -199,18 +230,71 @@ class ExperimentBuilder:
             self._protocols.append(p)
         return self
 
+    def get_protocol(self, protocol_name: str) -> Protocol:
+        protocol = next(
+            (p for p in self._protocols if p.protocol_name == protocol_name), None
+        )
+        if protocol is None:
+            raise ValueError(f"Protocol '{protocol_name}' not found in experiment.")
+        return protocol
+
+    def check_node(self, node: Node) -> None:
+        if node not in self._nodes:
+            raise ValueError(f"Node '{node.id}' not found in experiment.")
+
+    def add_node(self, protocol_name: str) -> Node:
+        node = Node(protocol_name=protocol_name)
+        self._nodes.append(node)
+        return node
+
+    def get_node(self, node_id: UUID) -> Node:
+        node = next((n for n in self._nodes if n.id == node_id), None)
+        if node is None:
+            raise ValueError(f"Node '{node_id}' not found in experiment.")
+        return node
+
+    def add_edge(
+        self, from_node: Node, from_port: str, to_node: Node, to_port: str
+    ) -> Edge:
+        edge = Edge(
+            from_node=from_node.id,
+            from_port=from_port,
+            to_node=to_node.id,
+            to_port=to_port,
+        )
+        self._edges.append(edge)
+        return edge
+
     def build(self) -> Experiment:
         """Build and return the final Experiment object"""
-        # check reagent names in protocols
         for protocol in self._protocols:
             protocol.validate_requirements(
                 {lt.name: lt for lt in self._labware_types}, self._reagent_names
             )
+        for node in self._nodes:
+            self.check_node(node)
+        for edge in self._edges:
+            from_node = self.get_node(edge.from_node)
+            from_protocol = self.get_protocol(from_node.protocol_name)
+            if edge.from_port not in from_protocol.get_output_ports():
+                raise ValueError(
+                    f"Port '{edge.from_port}' not found in protocol '{from_protocol.protocol_name}'. "
+                    f"Valid ports are: {from_protocol.get_output_ports()}"
+                )
+            to_node = self.get_node(edge.to_node)
+            to_protocol = self.get_protocol(to_node.protocol_name)
+            if edge.to_port not in to_protocol.get_input_ports():
+                raise ValueError(
+                    f"Port '{edge.to_port}' not found in protocol '{to_node.protocol_name}'. "
+                    f"Valid ports are: {to_protocol.get_input_ports()}"
+                )
         return Experiment(
             name=self.name,
             reagent_names=self._reagent_names,
             labware_types=self._labware_types,
             protocols=self._protocols,
+            nodes=self._nodes,
+            edges=self._edges,
         )
 
 
@@ -240,12 +324,17 @@ if __name__ == "__main__":
     )
 
     # define experiment using builder pattern
-    experiment = (
+    exb = (
         Experiment.builder("HEK293A culture")
         .reagent_names("medium", "trypsin", "DMEM", "PBS")
         .labware_types(*labware_types)
         .protocols(medium_change, passage)
-        .build()
     )
+    medium_change_1 = exb.add_node("medium_change")
+    medium_change_2 = exb.add_node("medium_change")
+    passage_1 = exb.add_node("passage")
+    exb.add_edge(medium_change_1, "cell_plate", medium_change_2, "cell_plate")
+    exb.add_edge(medium_change_2, "cell_plate", passage_1, "cell_plate")
+    experiment = exb.build()
 
     print(experiment.model_dump_json(indent=2))
