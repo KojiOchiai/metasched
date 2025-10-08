@@ -30,7 +30,6 @@ class ExistingLabware(BaseLabware):
 
 
 class Protocol(BaseModel):
-    experiment: "Experiment"
     protocol_name: str = Field(min_length=1, max_length=100)
     reagent: dict[str, Reagent] = Field(default_factory=dict)
     new_labware: dict[str, NewLabware] = Field(default_factory=dict)
@@ -47,7 +46,6 @@ class Protocol(BaseModel):
                 k: v.model_dump() for k, v in self.existing_labware.items()
             },
             "duration": str(self.duration),
-            "experiment_name": self.experiment.name,  # add name instead of object
         }
         return data
 
@@ -59,8 +57,6 @@ class Protocol(BaseModel):
         volume: LiquidVolume,
         prepare_to: str,
     ) -> None:
-        if name not in self.experiment.reagent_name:
-            raise ValueError(f"Reagent name '{name}' not defined in experiment.")
         self.reagent[name] = Reagent(
             labware_type=labware_type,
             reagent_name=reagent_name,
@@ -88,6 +84,21 @@ class Protocol(BaseModel):
             prepare_to=prepare_to,
         )
 
+    def validate_requirements(
+        self, labware_types: dict[str, LabwareType], reagent_names: list[str]
+    ) -> None:
+        for r in self.reagent.values():
+            if r.labware_type not in labware_types:
+                raise ValueError(f"Labware type '{r.labware_type}' not found.")
+            if r.reagent_name not in reagent_names:
+                raise ValueError(f"Reagent name '{r.reagent_name}' not found.")
+        for nl in self.new_labware.values():
+            if nl.labware_type not in labware_types:
+                raise ValueError(f"Labware type '{nl.labware_type}' not found.")
+        for el in self.existing_labware.values():
+            if el.labware_type not in labware_types:
+                raise ValueError(f"Labware type '{el.labware_type}' not found.")
+
     def __call__(self, **kwds: "ParentLabware") -> "ProtocolCall":
         for name, labware in kwds.items():
             if name not in self.existing_labware:
@@ -103,7 +114,6 @@ class Protocol(BaseModel):
             duration=self.duration,
             args=kwds,
         )
-        self.experiment.protocol_calls.append(call)
         return call
 
 
@@ -173,7 +183,8 @@ class MoveOut(ScenarioNode):
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    reagent_name: list[str] = Field(default_factory=list)
+    reagent_names: list[str] = Field(default_factory=list)
+    labware_types: list[LabwareType] = Field(default_factory=list)
     protocols: list[Protocol] = Field(default_factory=list)
     protocol_calls: list[ProtocolCall] = Field(default_factory=list)
     stores: list[Store] = Field(default_factory=list)
@@ -181,24 +192,41 @@ class Experiment(BaseModel):
     moves_out: list[MoveOut] = Field(default_factory=list)
 
     def __post__init__(self):
-        if len(set(self.reagent_name)) != len(self.reagent_name):
+        if len(set(self.reagent_names)) != len(self.reagent_names):
             raise ValueError("Duplicate reagent names found.")
 
-    def new_reagent_name(self, name: str) -> None:
-        if name in self.reagent_name:
+    def add_reagent_name(self, name: str) -> None:
+        if name in self.reagent_names:
             raise ValueError(f"Reagent name '{name}' already exists.")
-        self.reagent_name.append(name)
+        self.reagent_names.append(name)
 
-    def new_protocol(self, protocol_name: str, duration: timedelta) -> Protocol:
-        if any(p.protocol_name == protocol_name for p in self.protocols):
-            raise ValueError(f"Protocol name '{protocol_name}' already exists.")
-        protocol = Protocol(
-            experiment=self,
-            protocol_name=protocol_name,
-            duration=duration,
+    def add_labware_type(self, labware_type: LabwareType) -> None:
+        if any(lt.name == labware_type.name for lt in self.labware_types):
+            raise ValueError(f"Labware type '{labware_type.name}' already exists.")
+        self.labware_types.append(labware_type)
+
+    def add_protocol(self, protocol: Protocol) -> None:
+        if any(p.protocol_name == protocol.protocol_name for p in self.protocols):
+            raise ValueError(
+                f"Protocol name '{protocol.protocol_name}' already exists."
+            )
+        protocol.validate_requirements(
+            labware_types={lt.name: lt for lt in self.labware_types},
+            reagent_names=self.reagent_names,
         )
         self.protocols.append(protocol)
-        return protocol
+
+    def call(self, protocol_name: str, **kwds: ParentLabware) -> ProtocolCall:
+        protocol = next(
+            (p for p in self.protocols if p.protocol_name == protocol_name), None
+        )
+        if protocol is None:
+            raise ValueError(f"Protocol name '{protocol_name}' not found.")
+        call = protocol(
+            **kwds,
+        )
+        self.protocol_calls.append(call)
+        return call
 
     def get_scenario_nodes(self) -> list[ProtocolCall | Store | MoveIn | MoveOut]:
         return self.protocol_calls + self.stores + self.moves_in + self.moves_out
@@ -340,17 +368,20 @@ class Experiment(BaseModel):
 
 
 if __name__ == "__main__":
-    # define experiment
-    exp = Experiment(name="Test Experiment")
+    from src.labware import labware_types
 
-    # define reagent names
-    exp.new_reagent_name("medium")
-    exp.new_reagent_name("trypsin")
-    exp.new_reagent_name("DMEM")
-    exp.new_reagent_name("PBS")
+    # define experiment
+    exp = Experiment(
+        name="Test Experiment",
+        reagent_names=["medium", "trypsin", "DMEM", "PBS"],
+        labware_types=labware_types,
+    )
 
     # define protocols
-    medium_change = exp.new_protocol("medium_change", duration=timedelta(minutes=30))
+    medium_change = Protocol(
+        protocol_name="medium_change",
+        duration=timedelta(minutes=30),
+    )
     medium_change.add_reagent(
         name="medium",
         labware_type="tube50ml",
@@ -361,8 +392,12 @@ if __name__ == "__main__":
     medium_change.add_existing_labware(
         name="cell_plate", labware_type="plate6well", prepare_to="LS/1"
     )
+    exp.add_protocol(medium_change)
 
-    passage = exp.new_protocol("passage", duration=timedelta(hours=1))
+    passage = Protocol(
+        protocol_name="passage",
+        duration=timedelta(minutes=45),
+    )
     passage.add_reagent(
         name="medium",
         labware_type="tube50ml",
@@ -397,19 +432,19 @@ if __name__ == "__main__":
     passage.add_new_labware(
         name="new_cell_plate", labware_type="plate6well", prepare_to="LS/2"
     )
+    exp.add_protocol(passage)
 
     # define scenario
     cell_plate = exp.move_in(labware_type="plate6well")
-    mc1 = medium_change(cell_plate=cell_plate)
-    exp.store(
+    mc1 = exp.call("medium_change", cell_plate=cell_plate)
+    cell_plate = exp.store(
         type="warm_30", duration=timedelta(hours=24), labware=mc1.get("cell_plate")
     )
-    passage1 = passage(cell_plate=cell_plate)
+    passage1 = exp.call("passage", cell_plate=cell_plate)
 
     print(exp.model_dump_json(indent=2))
 
     print("")
-    from src.labware import labware_types
 
     reagents = exp.calc_resources({lt.name: lt for lt in labware_types})
     for r in reagents:
