@@ -275,9 +275,13 @@ class ExperimentBuilder:
             )
         for node in self._nodes:
             self.check_node(node)
+
+        used_from_ports = set()
+        used_to_ports = set()
         for edge in self._edges:
             from_node = self.get_node(edge.from_node)
             from_protocol = self.get_protocol(from_node.protocol_name)
+            # check if ports exist in protocols
             if edge.from_port not in from_protocol.get_output_ports():
                 raise ValueError(
                     f"Port '{edge.from_port}' not found in protocol '{from_protocol.protocol_name}'. "
@@ -290,6 +294,19 @@ class ExperimentBuilder:
                     f"Port '{edge.to_port}' not found in protocol '{to_node.protocol_name}'. "
                     f"Valid ports are: {to_protocol.get_input_ports()}"
                 )
+            # check for duplicate usage of ports
+            if (edge.from_node, edge.from_port) in used_from_ports:
+                raise ValueError(
+                    f"Duplicate usage of port '{edge.from_port}' "
+                    f"on node '{from_protocol.protocol_name}/{edge.from_node}'. "
+                )
+            if (edge.to_node, edge.to_port) in used_to_ports:
+                raise ValueError(
+                    f"Duplicate usage of port '{edge.to_port}' "
+                    f"on node '{to_protocol.protocol_name}/{edge.to_node}'. "
+                )
+            used_from_ports.add((edge.from_node, edge.from_port))
+            used_to_ports.add((edge.to_node, edge.to_port))
         return Experiment(
             name=self.name,
             reagent_names=self._reagent_names,
