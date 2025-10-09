@@ -355,6 +355,125 @@ class ExperimentBuilder:
         self._edges.append(edge)
         return edge
 
+    def auto_detect_ports(self, from_node: Node, to_node: Node) -> tuple[str, str]:
+        """Automatically detect compatible ports between two nodes based on protocol information"""
+        from_protocol = self.get_protocol(from_node.protocol_name)
+        to_protocol = self.get_protocol(to_node.protocol_name)
+
+        from_ports = from_protocol.get_output_ports()
+        to_ports = to_protocol.get_input_ports()
+
+        # Case 1: Both protocols have only one port
+        if len(from_ports) == 1 and len(to_ports) == 1:
+            return from_ports[0], to_ports[0]
+
+        # Case 2: Common port names exist
+        common_ports = set(from_ports) & set(to_ports)
+        if len(common_ports) == 1:
+            common_port = list(common_ports)[0]
+            return common_port, common_port
+
+        # Case 3: Try to infer by labware type
+        return self._infer_by_labware_type(
+            from_protocol, to_protocol, from_ports, to_ports
+        )
+
+    def _infer_by_labware_type(
+        self,
+        from_protocol: Protocol,
+        to_protocol: Protocol,
+        from_ports: list[str],
+        to_ports: list[str],
+    ) -> tuple[str, str]:
+        """Infer port connection based on labware type compatibility"""
+
+        # Get labware types for all output ports of from_protocol
+        from_port_types = {}
+        for port in from_ports:
+            if port in from_protocol.new_labware:
+                from_port_types[port] = from_protocol.new_labware[port].labware_type
+            elif port in from_protocol.existing_labware:
+                from_port_types[port] = from_protocol.existing_labware[
+                    port
+                ].labware_type
+
+        # Get labware types for all input ports of to_protocol
+        to_port_types = {}
+        for port in to_ports:
+            if port in to_protocol.existing_labware:
+                to_port_types[port] = to_protocol.existing_labware[port].labware_type
+
+        # Find matching labware types
+        compatible_pairs = []
+        for from_port, from_type in from_port_types.items():
+            for to_port, to_type in to_port_types.items():
+                if from_type == to_type:
+                    compatible_pairs.append((from_port, to_port))
+
+        if len(compatible_pairs) == 1:
+            return compatible_pairs[0]
+        elif len(compatible_pairs) > 1:
+            raise ValueError(
+                f"Multiple compatible port pairs found between {from_protocol.protocol_name} "
+                f"and {to_protocol.protocol_name}: {compatible_pairs}. "
+                "Please specify ports explicitly."
+            )
+        else:
+            raise ValueError(
+                f"No compatible ports found between {from_protocol.protocol_name} "
+                f"(output ports: {from_ports}) and {to_protocol.protocol_name} "
+                f"(input ports: {to_ports}). Please specify ports explicitly."
+            )
+
+    def smart_connect(
+        self,
+        from_node: Node,
+        to_node: Node,
+        from_port: str | None = None,
+        to_port: str | None = None,
+    ) -> "ExperimentBuilder":
+        """Connect two nodes with automatic port detection when ports are not specified"""
+
+        # If both ports are explicitly specified, use them directly
+        if from_port and to_port:
+            self.add_edge(from_node, from_port, to_node, to_port)
+            return self
+
+        try:
+            # Attempt automatic port detection
+            detected_from_port, detected_to_port = self.auto_detect_ports(
+                from_node, to_node
+            )
+
+            # Use detected ports if not explicitly specified
+            final_from_port = from_port or detected_from_port
+            final_to_port = to_port or detected_to_port
+
+            self.add_edge(from_node, final_from_port, to_node, final_to_port)
+            return self
+
+        except ValueError as e:
+            # Provide helpful error message when auto-detection fails
+            from_protocol = self.get_protocol(from_node.protocol_name)
+            to_protocol = self.get_protocol(to_node.protocol_name)
+
+            raise ValueError(
+                f"Cannot auto-detect ports between {from_node.protocol_name} and {to_node.protocol_name}. "
+                f"Available from_ports: {from_protocol.get_output_ports()}, "
+                f"Available to_ports: {to_protocol.get_input_ports()}. "
+                f"Please specify ports explicitly. Original error: {str(e)}"
+            ) from e
+
+    def smart_sequence(self, *nodes: Node) -> "ExperimentBuilder":
+        """Connect multiple nodes in sequence using automatic port detection"""
+        if len(nodes) < 2:
+            raise ValueError("At least two nodes are required for sequence connection")
+
+        for i in range(len(nodes) - 1):
+            self.smart_connect(nodes[i], nodes[i + 1])
+
+        return self
+
     def build(self) -> Experiment:
         """Build and return the final Experiment object"""
         for protocol in self._protocols:
@@ -445,15 +564,20 @@ if __name__ == "__main__":
     store_1 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
     store_2 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
     store_3 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    store_4 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    exb.add_edge(move_in_1, "labware", medium_change_1, "cell_plate")
-    exb.add_edge(medium_change_1, "cell_plate", store_1, "labware")
-    exb.add_edge(store_1, "labware", medium_change_2, "cell_plate")
-    exb.add_edge(medium_change_2, "cell_plate", store_2, "labware")
-    exb.add_edge(store_2, "labware", passage_1, "cell_plate")
+    exb.smart_sequence(
+        move_in_1,
+        medium_change_1,
+        store_1,
+        medium_change_2,
+        store_2,
+        passage_1,
+    )
     exb.add_edge(passage_1, "new_cell_plate", store_3, "labware")
-    exb.add_edge(store_3, "labware", medium_change_3, "cell_plate")
-    exb.add_edge(medium_change_3, "cell_plate", move_out_1, "labware")
+    exb.smart_sequence(
+        store_3,
+        medium_change_3,
+        move_out_1,
+    )
     experiment = exb.build()
 
     experiment_json = experiment.model_dump_json(indent=2)
