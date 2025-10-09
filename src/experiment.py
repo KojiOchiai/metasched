@@ -438,6 +438,8 @@ if __name__ == "__main__":
         .labware_types(*labware_types)
         .protocols(medium_change, passage)
     )
+
+    # define experiment workflow using nodes and edges
     move_in_1 = exb.move_in("plate6well")
     medium_change_1 = exb.add_node("medium_change")
     medium_change_2 = exb.add_node("medium_change")
