@@ -310,7 +310,6 @@ class ExperimentBuilder:
         protocol = self.get_protocol(node.protocol_name)
         # check args
         for arg_name, arg_type in protocol.args.items():
-            print(get_args(arg_type))
             if arg_name not in node.args:
                 raise ValueError(
                     f"Missing argument '{arg_name}' for node '{node.id}' "
@@ -408,9 +407,6 @@ class ExperimentBuilder:
 
 if __name__ == "__main__":
     from src.labware import labware_types
-
-    # ========== Original approach (existing code) ==========
-    print("=== Original Builder Pattern ===")
 
     # define protocols using builder pattern
     medium_change = (
