@@ -464,7 +464,7 @@ class ExperimentBuilder:
                 f"Please specify ports explicitly. Original error: {str(e)}"
             ) from e
 
-    def smart_sequence(self, *nodes: Node) -> "ExperimentBuilder":
+    def smart_sequence(self, *nodes: Node) -> Node:
         """Connect multiple nodes in sequence using automatic port detection"""
         if len(nodes) < 2:
             raise ValueError("At least two nodes are required for sequence connection")
@@ -472,7 +472,7 @@ class ExperimentBuilder:
         for i in range(len(nodes) - 1):
             self.smart_connect(nodes[i], nodes[i + 1])
 
-        return self
+        return nodes[-1]
 
     def build(self) -> Experiment:
         """Build and return the final Experiment object"""
@@ -528,14 +528,14 @@ if __name__ == "__main__":
     from src.labware import labware_types
 
     # define protocols using builder pattern
-    medium_change = (
+    medium_change_protocol = (
         Protocol.builder("medium_change", timedelta(minutes=30))
         .reagent("tube50ml", "medium", volume="20ml", prepare_to="tube_rack1/1")
         .existing_labware("cell_plate", "plate6well", prepare_to="LS/1")
         .build()
     )
 
-    passage = (
+    passage_protocol = (
         Protocol.builder("passage", timedelta(minutes=45))
         .reagent("tube50ml", "medium", volume="20ml", prepare_to="tube_rack1/1")
         .reagent("tube50ml", "trypsin", volume="5ml", prepare_to="tube_rack1/2")
@@ -551,32 +551,24 @@ if __name__ == "__main__":
         Experiment.builder("HEK293A culture")
         .reagent_names("medium", "trypsin", "DMEM", "PBS")
         .labware_types(*labware_types)
-        .protocols(medium_change, passage)
+        .protocols(medium_change_protocol, passage_protocol)
     )
 
     # define experiment workflow using nodes and edges
-    move_in_1 = exb.move_in("plate6well")
-    medium_change_1 = exb.add_node("medium_change")
-    medium_change_2 = exb.add_node("medium_change")
-    medium_change_3 = exb.add_node("medium_change")
-    passage_1 = exb.add_node("passage")
-    move_out_1 = exb.move_out("plate6well")
-    store_1 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    store_2 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    store_3 = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    exb.smart_sequence(
-        move_in_1,
-        medium_change_1,
-        store_1,
-        medium_change_2,
-        store_2,
-        passage_1,
+    passage = exb.smart_sequence(
+        exb.move_in("plate6well"),
+        exb.add_node("medium_change"),
+        exb.store("plate6well", timedelta(hours=12), store_type="warm_37"),
+        exb.add_node("medium_change"),
+        exb.store("plate6well", timedelta(hours=12), store_type="warm_37"),
+        exb.add_node("passage"),
     )
-    exb.add_edge(passage_1, "new_cell_plate", store_3, "labware")
+    store = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
+    exb.add_edge(passage, "new_cell_plate", store, "labware")
     exb.smart_sequence(
-        store_3,
-        medium_change_3,
-        move_out_1,
+        store,
+        exb.add_node("medium_change"),
+        exb.move_out("plate6well"),
     )
     experiment = exb.build()
 
