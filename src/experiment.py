@@ -202,7 +202,7 @@ class ExperimentBuilder:
 
     name: str
     _reagent_names: list[str]
-    _labware_types: list[LabwareType]
+    _labware_types: list[str]
     _protocols: list[Protocol]
     _nodes: list[Node]
     _edges: list[Edge]
@@ -223,11 +223,11 @@ class ExperimentBuilder:
             self._reagent_names.append(n)
         return self
 
-    def labware_types(self, *labware_types: LabwareType) -> "ExperimentBuilder":
+    def labware_types(self, *labware_types: str) -> "ExperimentBuilder":
         """Add labware types to the experiment"""
         for lt in labware_types:
             if lt in self._labware_types:
-                raise ValueError(f"Duplicate labware type '{lt.name}' found.")
+                raise ValueError(f"Duplicate labware type '{lt}' found.")
             self._labware_types.append(lt)
         return self
 
@@ -248,7 +248,7 @@ class ExperimentBuilder:
         return protocol
 
     def move_in_protocol(self, labware_type: str) -> Protocol:
-        if labware_type not in [lt.name for lt in self._labware_types]:
+        if labware_type not in self._labware_types:
             raise ValueError(f"Labware type '{labware_type}' not found.")
         number = len(self._protocols) + 1
         move_in = (
@@ -260,7 +260,7 @@ class ExperimentBuilder:
         return move_in
 
     def move_out_protocol(self, labware_type: str) -> Protocol:
-        if labware_type not in [lt.name for lt in self._labware_types]:
+        if labware_type not in self._labware_types:
             raise ValueError(f"Labware type '{labware_type}' not found.")
         number = len(self._protocols) + 1
         move_out = (
@@ -274,7 +274,7 @@ class ExperimentBuilder:
     def store_protocol(
         self, labware_type: str, duration: timedelta = timedelta(minutes=5)
     ) -> Protocol:
-        if labware_type not in [lt.name for lt in self._labware_types]:
+        if labware_type not in self._labware_types:
             raise ValueError(f"Labware type '{labware_type}' not found.")
         number = len(self._protocols) + 1
         store = (
@@ -597,9 +597,7 @@ class ExperimentBuilder:
     def build(self) -> Experiment:
         """Build and return the final Experiment object"""
         for protocol in self._protocols:
-            protocol.validate_requirements(
-                [lt.name for lt in self._labware_types], self._reagent_names
-            )
+            protocol.validate_requirements(self._labware_types, self._reagent_names)
         for node in self._nodes:
             self.check_node(node)
 
@@ -669,7 +667,7 @@ if __name__ == "__main__":
     exb = (
         Experiment.builder("HEK293A culture")
         .reagent_names("medium", "trypsin", "DMEM", "PBS")
-        .labware_types(*labware_types)
+        .labware_types(*[lt.name for lt in labware_types])
         .protocols(medium_change_protocol, passage_protocol)
     )
 
