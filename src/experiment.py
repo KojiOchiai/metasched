@@ -180,6 +180,40 @@ class Workflow(BaseModel):
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
 
+    def check_edges(self) -> None:
+        node_ids = {node.id for node in self.nodes}
+        for edge in self.edges:
+            if edge.from_node not in node_ids:
+                raise ValueError(
+                    f"Edge from_node '{edge.from_node}' not found in nodes."
+                )
+            if edge.to_node not in node_ids:
+                raise ValueError(f"Edge to_node '{edge.to_node}' not found in nodes.")
+
+    def check_duplicate_ports(self) -> None:
+        used_from_ports = set()
+        used_to_ports = set()
+        for edge in self.edges:
+            if (edge.from_node, edge.from_port) in used_from_ports:
+                raise ValueError(
+                    f"Duplicate usage of port '{edge.from_port}' "
+                    f"on node '{edge.from_node}'. "
+                )
+            if (edge.to_node, edge.to_port) in used_to_ports:
+                raise ValueError(
+                    f"Duplicate usage of port '{edge.to_port}' "
+                    f"on node '{edge.to_node}'. "
+                )
+            used_from_ports.add((edge.from_node, edge.from_port))
+            used_to_ports.add((edge.to_node, edge.to_port))
+
+    def check_nodes(self, protocol_names: list[str]) -> None:
+        for node in self.nodes:
+            if node.protocol_name not in protocol_names:
+                raise ValueError(
+                    f"Node protocol '{node.protocol_name}' not found in protocols."
+                )
+
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
