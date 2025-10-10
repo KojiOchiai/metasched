@@ -214,6 +214,27 @@ class Workflow(BaseModel):
                     f"Node protocol '{node.protocol_name}' not found in protocols."
                 )
 
+    def check_port_exists(self, experiment: "Experiment") -> None:
+        for edge in self.edges:
+            from_node = next((n for n in self.nodes if n.id == edge.from_node), None)
+            to_node = next((n for n in self.nodes if n.id == edge.to_node), None)
+            if from_node is None:
+                raise ValueError(f"From node '{edge.from_node}' not found.")
+            if to_node is None:
+                raise ValueError(f"To node '{edge.to_node}' not found.")
+            from_protocol = experiment.get_protocol(from_node.protocol_name)
+            to_protocol = experiment.get_protocol(to_node.protocol_name)
+            if edge.from_port not in from_protocol.get_output_ports():
+                raise ValueError(
+                    f"Port '{edge.from_port}' not found in protocol '{from_protocol.protocol_name}'. "
+                    f"Valid ports are: {from_protocol.get_output_ports()}"
+                )
+            if edge.to_port not in to_protocol.get_input_ports():
+                raise ValueError(
+                    f"Port '{edge.to_port}' not found in protocol '{to_protocol.protocol_name}'. "
+                    f"Valid ports are: {to_protocol.get_input_ports()}"
+                )
+
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -227,6 +248,20 @@ class Experiment(BaseModel):
     def builder(cls, name: str) -> "ExperimentBuilder":
         """Create a new ExperimentBuilder instance"""
         return ExperimentBuilder(name)
+
+    def get_protocol(self, protocol_name: str) -> Protocol:
+        protocol = next(
+            (p for p in self.protocols if p.protocol_name == protocol_name), None
+        )
+        if protocol is None:
+            raise ValueError(f"Protocol '{protocol_name}' not found in experiment.")
+        return protocol
+
+    def check_workflow(self) -> None:
+        self.workflow.check_nodes([p.protocol_name for p in self.protocols])
+        self.workflow.check_edges()
+        self.workflow.check_duplicate_ports()
+        self.workflow.check_port_exists(self)
 
 
 class ExperimentBuilder:
