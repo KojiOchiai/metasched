@@ -179,17 +179,12 @@ class Edge(BaseModel):
 
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    reagent_names: list[str] = Field(default_factory=list)
     protocols: list[Protocol] = Field(default_factory=list)
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
 
     class Config:
         frozen = True
-
-    def __post__init__(self):
-        if len(set(self.reagent_names)) != len(self.reagent_names):
-            raise ValueError("Duplicate reagent names found.")
 
     @classmethod
     def builder(cls, name: str) -> "ExperimentBuilder":
@@ -634,7 +629,6 @@ class ExperimentBuilder:
             used_to_ports.add((edge.to_node, edge.to_port))
         return Experiment(
             name=self.name,
-            reagent_names=self._reagent_names,
             protocols=self._protocols,
             nodes=self._nodes,
             edges=self._edges,
