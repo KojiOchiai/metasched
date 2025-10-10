@@ -434,35 +434,156 @@ class ExperimentBuilder:
     ) -> "ExperimentBuilder":
         """Connect two nodes with automatic port detection when ports are not specified"""
 
-        # If both ports are explicitly specified, use them directly
+        # Get protocol information for validation and detection
+        from_protocol = self.get_protocol(from_node.protocol_name)
+        to_protocol = self.get_protocol(to_node.protocol_name)
+
+        from_ports = from_protocol.get_output_ports()
+        to_ports = to_protocol.get_input_ports()
+
+        # If both ports are explicitly specified, validate and use them directly
         if from_port and to_port:
+            self._validate_port(
+                from_port, from_ports, from_node.protocol_name, "output"
+            )
+            self._validate_port(to_port, to_ports, to_node.protocol_name, "input")
             self.add_edge(from_node, from_port, to_node, to_port)
             return self
 
+        # If only from_port is specified, find compatible to_port
+        if from_port and not to_port:
+            self._validate_port(
+                from_port, from_ports, from_node.protocol_name, "output"
+            )
+            try:
+                detected_to_port = self._find_compatible_port(
+                    from_protocol, to_protocol, from_port, "from_to_to"
+                )
+                self.add_edge(from_node, from_port, to_node, detected_to_port)
+                return self
+            except ValueError as e:
+                raise ValueError(
+                    f"Cannot find compatible input port for specified output port '{from_port}' "
+                    f"of {from_node.protocol_name}. Available input ports in {to_node.protocol_name}: {to_ports}. "
+                    f"Original error: {str(e)}"
+                ) from e
+
+        # If only to_port is specified, find compatible from_port
+        if to_port and not from_port:
+            self._validate_port(to_port, to_ports, to_node.protocol_name, "input")
+            try:
+                detected_from_port = self._find_compatible_port(
+                    from_protocol, to_protocol, to_port, "to_to_from"
+                )
+                self.add_edge(from_node, detected_from_port, to_node, to_port)
+                return self
+            except ValueError as e:
+                raise ValueError(
+                    f"Cannot find compatible output port for specified input port '{to_port}' "
+                    f"of {to_node.protocol_name}. Available output ports in {from_node.protocol_name}: {from_ports}. "
+                    f"Original error: {str(e)}"
+                ) from e
+
+        # If neither port is specified, use full auto-detection
         try:
-            # Attempt automatic port detection
             detected_from_port, detected_to_port = self.auto_detect_ports(
                 from_node, to_node
             )
-
-            # Use detected ports if not explicitly specified
-            final_from_port = from_port or detected_from_port
-            final_to_port = to_port or detected_to_port
-
-            self.add_edge(from_node, final_from_port, to_node, final_to_port)
+            self.add_edge(from_node, detected_from_port, to_node, detected_to_port)
             return self
 
         except ValueError as e:
-            # Provide helpful error message when auto-detection fails
-            from_protocol = self.get_protocol(from_node.protocol_name)
-            to_protocol = self.get_protocol(to_node.protocol_name)
-
             raise ValueError(
                 f"Cannot auto-detect ports between {from_node.protocol_name} and {to_node.protocol_name}. "
-                f"Available from_ports: {from_protocol.get_output_ports()}, "
-                f"Available to_ports: {to_protocol.get_input_ports()}. "
+                f"Available from_ports: {from_ports}, "
+                f"Available to_ports: {to_ports}. "
                 f"Please specify ports explicitly. Original error: {str(e)}"
             ) from e
+
+    def _validate_port(
+        self, port: str, available_ports: list[str], protocol_name: str, port_type: str
+    ) -> None:
+        """Validate that a specified port exists in the available ports list"""
+        if port not in available_ports:
+            raise ValueError(
+                f"Invalid {port_type} port '{port}' for protocol '{protocol_name}'. "
+                f"Available {port_type} ports: {available_ports}"
+            )
+
+    def _find_compatible_port(
+        self,
+        from_protocol: Protocol,
+        to_protocol: Protocol,
+        specified_port: str,
+        direction: str,
+    ) -> str:
+        """Find a compatible port based on the specified port and labware type compatibility
+
+        Args:
+            from_protocol: Source protocol
+            to_protocol: Target protocol
+            specified_port: The port that was specified by the user
+            direction: Either 'from_to_to' (find to_port for given from_port) or 'to_to_from' (find from_port for given to_port)
+        """
+        if direction == "from_to_to":
+            # Find compatible to_port for specified from_port
+            specified_labware_type = self._get_port_labware_type(
+                from_protocol, specified_port, "output"
+            )
+            to_ports = to_protocol.get_input_ports()
+
+            compatible_ports = []
+            for to_port in to_ports:
+                to_labware_type = self._get_port_labware_type(
+                    to_protocol, to_port, "input"
+                )
+                if specified_labware_type == to_labware_type:
+                    compatible_ports.append(to_port)
+
+        elif direction == "to_to_from":
+            # Find compatible from_port for specified to_port
+            specified_labware_type = self._get_port_labware_type(
+                to_protocol, specified_port, "input"
+            )
+            from_ports = from_protocol.get_output_ports()
+
+            compatible_ports = []
+            for from_port in from_ports:
+                from_labware_type = self._get_port_labware_type(
+                    from_protocol, from_port, "output"
+                )
+                if specified_labware_type == from_labware_type:
+                    compatible_ports.append(from_port)
+        else:
+            raise ValueError(f"Invalid direction: {direction}")
+
+        if len(compatible_ports) == 1:
+            return compatible_ports[0]
+        elif len(compatible_ports) > 1:
+            raise ValueError(
+                f"Multiple compatible ports found: {compatible_ports}. Please specify both ports explicitly."
+            )
+        else:
+            raise ValueError(
+                f"No compatible port found for labware type '{specified_labware_type}'"
+            )
+
+    def _get_port_labware_type(
+        self, protocol: Protocol, port: str, port_type: str
+    ) -> str:
+        """Get the labware type for a specific port"""
+        if port_type == "output":
+            if port in protocol.new_labware:
+                return protocol.new_labware[port].labware_type
+            elif port in protocol.existing_labware:
+                return protocol.existing_labware[port].labware_type
+        elif port_type == "input":
+            if port in protocol.existing_labware:
+                return protocol.existing_labware[port].labware_type
+
+        raise ValueError(
+            f"Port '{port}' not found in {port_type} ports of protocol '{protocol.protocol_name}'"
+        )
 
     def smart_sequence(self, *nodes: Node) -> Node:
         """Connect multiple nodes in sequence using automatic port detection"""
@@ -564,7 +685,7 @@ if __name__ == "__main__":
         exb.add_node("passage"),
     )
     store = exb.store("plate6well", timedelta(hours=12), store_type="warm_37")
-    exb.add_edge(passage, "new_cell_plate", store, "labware")
+    exb.smart_connect(passage, store, from_port="new_cell_plate")
     exb.smart_sequence(
         store,
         exb.add_node("medium_change"),
