@@ -47,18 +47,18 @@ class Protocol(BaseModel):
         return data
 
     def validate_requirements(
-        self, labware_types: dict[str, LabwareType], reagent_names: list[str]
+        self, labware_type_names: list[str], reagent_names: list[str]
     ) -> None:
         for r in self.reagent:
-            if r.labware_type not in labware_types:
+            if r.labware_type not in labware_type_names:
                 raise ValueError(f"Labware type '{r.labware_type}' not found.")
             if r.reagent_name not in reagent_names:
                 raise ValueError(f"Reagent name '{r.reagent_name}' not found.")
         for nl in self.new_labware.values():
-            if nl.labware_type not in labware_types:
+            if nl.labware_type not in labware_type_names:
                 raise ValueError(f"Labware type '{nl.labware_type}' not found.")
         for el in self.existing_labware.values():
-            if el.labware_type not in labware_types:
+            if el.labware_type not in labware_type_names:
                 raise ValueError(f"Labware type '{el.labware_type}' not found.")
 
     @classmethod
@@ -180,7 +180,6 @@ class Edge(BaseModel):
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     reagent_names: list[str] = Field(default_factory=list)
-    labware_types: list[LabwareType] = Field(default_factory=list)
     protocols: list[Protocol] = Field(default_factory=list)
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
@@ -599,7 +598,7 @@ class ExperimentBuilder:
         """Build and return the final Experiment object"""
         for protocol in self._protocols:
             protocol.validate_requirements(
-                {lt.name: lt for lt in self._labware_types}, self._reagent_names
+                [lt.name for lt in self._labware_types], self._reagent_names
             )
         for node in self._nodes:
             self.check_node(node)
@@ -638,7 +637,6 @@ class ExperimentBuilder:
         return Experiment(
             name=self.name,
             reagent_names=self._reagent_names,
-            labware_types=self._labware_types,
             protocols=self._protocols,
             nodes=self._nodes,
             edges=self._edges,
