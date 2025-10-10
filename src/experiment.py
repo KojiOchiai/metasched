@@ -4,7 +4,6 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_serializer
 
-from src.labware import LabwareType
 from src.value_object import LiquidVolume, StoreType
 
 
@@ -177,11 +176,15 @@ class Edge(BaseModel):
         frozen = True
 
 
+class Workflow(BaseModel):
+    nodes: list[Node] = Field(default_factory=list)
+    edges: list[Edge] = Field(default_factory=list)
+
+
 class Experiment(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     protocols: list[Protocol] = Field(default_factory=list)
-    nodes: list[Node] = Field(default_factory=list)
-    edges: list[Edge] = Field(default_factory=list)
+    workflow: Workflow = Field(default_factory=Workflow)
 
     class Config:
         frozen = True
@@ -630,8 +633,7 @@ class ExperimentBuilder:
         return Experiment(
             name=self.name,
             protocols=self._protocols,
-            nodes=self._nodes,
-            edges=self._edges,
+            workflow=Workflow(nodes=self._nodes, edges=self._edges),
         )
 
 
