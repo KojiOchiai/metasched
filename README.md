@@ -52,7 +52,11 @@ export MAHOLO_PORT=63001 # port that used by bioportal
 export MAHOLO_BASE_PATH=C:\\BioApl\\DataSet\\Path\\for\\Protocols\\ # directory path for protocols
 export MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/path/for/picture # directory path for picture
 ```
-追加したら変数を読み込む
+### MAHOLO_MICROSCOPE_IMAGE_DIRの設定例
+実際にアクセスするフォルダ構成：/mnt//nikon_save/2025_12_05/tiling/220513_test.tif
+MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/nikon_save/
+
+## 追加したら変数を読み込む
 ```bash
 source ~/.bashrc
 ```
