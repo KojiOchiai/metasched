@@ -182,6 +182,7 @@ class Executor:
         protocols = [p for p in all_protocol if p.started_time is None]
         if len(protocols) == 0:
             logger.info({"function": "optimize", "type": "end", "message": "no tasks"})
+            self._save_state()
             await self.await_list.mark_done()
             return
         next_protocol = min(protocols, key=lambda x: x.scheduled_time or datetime.max)
