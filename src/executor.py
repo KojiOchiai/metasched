@@ -28,6 +28,25 @@ class InterruptedAction(str, Enum):
     SKIP = "skip"
 
 
+def check_incomplete_state(json_storage: JSONStorage) -> dict | None:
+    """Check if the state file has an incomplete run.
+
+    Returns the state data if incomplete, None otherwise.
+    """
+    try:
+        data = json_storage.load()
+    except FileNotFoundError:
+        return None
+    protocols = [protocol_from_dict(d) for d in data["protocols"]]
+    all_nodes = sum((p.flatten() for p in protocols), [])
+    has_unfinished = any(
+        isinstance(n, Protocol) and n.finished_time is None for n in all_nodes
+    )
+    if has_unfinished:
+        return data
+    return None
+
+
 class Executor:
     def __init__(
         self,
