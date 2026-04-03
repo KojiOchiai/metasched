@@ -74,5 +74,27 @@ MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/nikon_save/
 uv run metasched execute --protocolfile sample_protocols/protocol_parallel.py --buffer 60 --driver maholo
 ```
 
+# ログの可視化
+実行ログをインタラクティブなHTMLタイムラインとして可視化する。
+
+## 最新のログを可視化
+```bash
+uv run python scripts/analyze_log.py
+```
+
+## 一覧から選択
+```bash
+uv run python scripts/analyze_log.py --list
+```
+
+## ログファイルを直接指定
+```bash
+uv run python scripts/analyze_log.py logs/metasched_20260404_005415.log
+```
+
+- 予定時刻(薄青)と実際の実行時刻(緑/黄/赤)を重ねて表示
+- ホバーでscheduled/started/finished/duration/delayの詳細を確認
+- 再最適化ポイントをマーカーで表示(legendクリックで切替)
+
 # Stop
 実行したコマンドライン上でCtrl+Cでキャンセル。
