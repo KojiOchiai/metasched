@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -28,10 +29,20 @@ class InterruptedAction(str, Enum):
     SKIP = "skip"
 
 
-def check_incomplete_state(json_storage: JSONStorage) -> dict | None:
+@dataclass
+class IncompleteState:
+    """Information about an incomplete previous run."""
+
+    interrupted_names: list[str]
+    """Protocol names that were started but not finished."""
+    pending_names: list[str]
+    """Protocol names that were not yet started."""
+
+
+def check_incomplete_state(json_storage: JSONStorage) -> IncompleteState | None:
     """Check if the state file has an incomplete run.
 
-    Returns the state data if incomplete, None otherwise.
+    Returns IncompleteState if incomplete, None otherwise.
     """
     try:
         data = json_storage.load()
@@ -39,11 +50,20 @@ def check_incomplete_state(json_storage: JSONStorage) -> dict | None:
         return None
     protocols = [protocol_from_dict(d) for d in data["protocols"]]
     all_nodes = sum((p.flatten() for p in protocols), [])
-    has_unfinished = any(
-        isinstance(n, Protocol) and n.finished_time is None for n in all_nodes
-    )
-    if has_unfinished:
-        return data
+    protocol_nodes = [n for n in all_nodes if isinstance(n, Protocol)]
+    interrupted = [
+        n.name for n in protocol_nodes
+        if n.started_time is not None and n.finished_time is None
+    ]
+    pending = [
+        n.name for n in protocol_nodes
+        if n.started_time is None
+    ]
+    if interrupted or pending:
+        return IncompleteState(
+            interrupted_names=interrupted,
+            pending_names=pending,
+        )
     return None
 
 

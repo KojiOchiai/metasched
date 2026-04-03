@@ -8,7 +8,12 @@ import typer
 
 from src.console import print_protocol_tree, print_schedule
 from src.driver import create_driver
-from src.executor import Executor, InterruptedAction, check_incomplete_state
+from src.executor import (
+    Executor,
+    IncompleteState,
+    InterruptedAction,
+    check_incomplete_state,
+)
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
@@ -20,17 +25,26 @@ logger = logging.getLogger("main")
 app = typer.Typer(help="metasched - constraint-based scheduling optimizer and executor")
 
 
-def _prompt_resume() -> tuple[bool, InterruptedAction]:
+def _prompt_resume(state: IncompleteState) -> tuple[bool, InterruptedAction]:
     """Ask the user whether to resume and how to handle interrupted tasks."""
-    resume = typer.confirm("Previous incomplete run found. Resume?")
+    typer.echo("Previous incomplete run found.")
+    if state.interrupted_names:
+        typer.echo(f"  Interrupted tasks: {', '.join(state.interrupted_names)}")
+    if state.pending_names:
+        typer.echo(f"  Pending tasks: {', '.join(state.pending_names)}")
+    resume = typer.confirm("Resume?")
     if not resume:
         return False, InterruptedAction.RETRY
-    action = typer.prompt(
-        "How to handle interrupted tasks?",
-        type=click.Choice(["retry", "skip"]),
-        default="retry",
-    )
-    return True, InterruptedAction(action)
+    action = InterruptedAction.RETRY
+    if state.interrupted_names:
+        action = InterruptedAction(
+            typer.prompt(
+                "How to handle interrupted tasks?",
+                type=click.Choice(["retry", "skip"]),
+                default="retry",
+            )
+        )
+    return True, action
 
 
 @app.command()
@@ -81,8 +95,9 @@ def execute(
 
     # If --resume is not explicitly set, check for incomplete previous run
     if not resume and protocolfile is not None:
-        if check_incomplete_state(json_storage) is not None:
-            resume, interrupted = _prompt_resume()
+        incomplete = check_incomplete_state(json_storage)
+        if incomplete is not None:
+            resume, interrupted = _prompt_resume(incomplete)
 
     if not (protocolfile or resume):
         raise typer.BadParameter("Either --protocolfile or --resume must be specified.")
