@@ -89,7 +89,9 @@ class Executor:
         await self.await_list.add_task(
             execution_time=next_protocol.scheduled_time, content=str(next_protocol.id)
         )
-        filepath = self.json_storage.save([p.to_dict() for p in self.protocols])
+        filepath = self.json_storage.save(
+            [p.model_dump(mode="json") for p in self.protocols]
+        )
         logger.info(
             {
                 "function": "optimize",

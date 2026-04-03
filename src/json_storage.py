@@ -39,7 +39,6 @@ class JSONStorage(ABC):
             Any: The loaded Python object.
         """
         pass
-        pass
 
 
 class LocalJSONStorage(JSONStorage):
@@ -70,17 +69,13 @@ class LocalJSONStorage(JSONStorage):
         return str(filepath)
 
     def load(self, key: str | None = None) -> Any:
-        # Allow passing either a full path or just the key
         if key is None:
             filenames = list(self.base_dir.glob("*.json"))
             if not filenames:
                 raise FileNotFoundError("No JSON files found in the storage directory")
-            # Load the most recent file if no key is provided
             filepath = max(filenames, key=lambda f: f.stat().st_mtime)
-        filepath = Path(filepath)
-        if not filepath.exists():
+        else:
             filepath = self.base_dir / f"{key}.json"
 
-        # Read JSON from file
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
