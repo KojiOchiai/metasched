@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 import typer
 
 from src.driver import create_driver
-from src.executor import Executor
+from src.executor import Executor, InterruptedAction
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
@@ -37,6 +37,10 @@ def main(
         Path,
         typer.Option(help="Path to the state file for saving/resuming schedules"),
     ] = Path(".state.json"),
+    interrupted: Annotated[
+        InterruptedAction,
+        typer.Option(help="How to handle interrupted tasks on resume: retry or skip"),
+    ] = InterruptedAction.RETRY,
 ):
     # validate options
     if not (protocolfile or resume):
@@ -54,6 +58,7 @@ def main(
         driver=create_driver(driver),
         json_storage=LocalJSONStorage(statefile),
         resume=resume,
+        interrupted=interrupted,
     )
     if protocol is not None:
         asyncio.run(executor.add_protocol(protocol))

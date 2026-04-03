@@ -7,7 +7,7 @@ import typer
 
 from src.console import print_protocol_tree, print_schedule
 from src.driver import create_driver
-from src.executor import Executor
+from src.executor import Executor, InterruptedAction
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
@@ -57,6 +57,10 @@ def execute(
         Path,
         typer.Option(help="Path to the state file for saving/resuming schedules"),
     ] = Path(".state.json"),
+    interrupted: Annotated[
+        InterruptedAction,
+        typer.Option(help="How to handle interrupted tasks on resume: retry or skip"),
+    ] = InterruptedAction.RETRY,
 ):
     """Execute a schedule with real-time task execution."""
     if not (protocolfile or resume):
@@ -75,6 +79,7 @@ def execute(
         driver=create_driver(driver),
         json_storage=LocalJSONStorage(statefile),
         resume=resume,
+        interrupted=interrupted,
     )
 
     async def aloop():

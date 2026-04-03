@@ -2,6 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta
+from enum import Enum
 
 from rich.live import Live
 
@@ -22,6 +23,11 @@ from src.protocol import (
 logger = logging.getLogger("executor")
 
 
+class InterruptedAction(str, Enum):
+    RETRY = "retry"
+    SKIP = "skip"
+
+
 class Executor:
     def __init__(
         self,
@@ -29,6 +35,7 @@ class Executor:
         driver: Driver,
         json_storage: JSONStorage,
         resume: bool = False,
+        interrupted: InterruptedAction = InterruptedAction.RETRY,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
@@ -50,27 +57,41 @@ class Executor:
                 )
             protocols = [protocol_from_dict(d) for d in data["protocols"]]
             self.protocols = [p for p in protocols if type(p) is Start]
-            self._reset_interrupted_protocols()
+            self._handle_interrupted_protocols(interrupted)
             asyncio.run(self.optimize())
 
-    def _reset_interrupted_protocols(self) -> None:
-        """Reset protocols that were started but not finished (interrupted)."""
+    def _handle_interrupted_protocols(self, action: InterruptedAction) -> None:
+        """Handle protocols that were started but not finished (interrupted)."""
         for start in self.protocols:
             for node in start.flatten():
-                if (
+                if not (
                     isinstance(node, Protocol)
                     and node.started_time is not None
                     and node.finished_time is None
                 ):
+                    continue
+                if action == InterruptedAction.RETRY:
                     logger.warning(
                         {
-                            "function": "_reset_interrupted_protocols",
+                            "function": "_handle_interrupted_protocols",
+                            "action": "retry",
                             "protocol_id": str(node.id),
                             "protocol_name": node.name,
                             "message": "Resetting interrupted protocol for re-execution",
                         }
                     )
                     node.started_time = None
+                else:
+                    node.finished_time = node.started_time + node.duration
+                    logger.warning(
+                        {
+                            "function": "_handle_interrupted_protocols",
+                            "action": "skip",
+                            "protocol_id": str(node.id),
+                            "protocol_name": node.name,
+                            "message": "Marking interrupted protocol as finished",
+                        }
+                    )
 
     def _save_state(self) -> str:
         """Save current protocol state with optimizer metadata."""
