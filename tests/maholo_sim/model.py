@@ -1,7 +1,7 @@
 import re
 from itertools import product
 
-from . import schemas
+from drivers.maholo.maholo_api import schemas
 
 
 def expand_string(pattern):
