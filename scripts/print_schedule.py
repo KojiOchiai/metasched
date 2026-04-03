@@ -9,7 +9,6 @@ from src.protocol import Start, format_protocol, protocol_from_dict
 # logging setting
 setup_logging()
 logger = logging.getLogger("main")
-logger.setLevel(logging.INFO)
 
 
 @click.command()

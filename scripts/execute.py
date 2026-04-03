@@ -14,7 +14,6 @@ from src.protocol import Start
 # logging setting
 setup_logging()
 logger = logging.getLogger("main")
-logger.setLevel(logging.INFO)
 
 
 async def aloop(executor: Executor):
@@ -77,11 +76,9 @@ def main(
             raise ValueError(
                 f"Protocol type 'Start' not found in the module '{protocolfile}'."
             )
-        print(protocol)
+        logger.info("Loaded protocol from %s", protocolfile)
     else:
         protocol = None
-
-    print(resume)
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),

@@ -10,7 +10,6 @@ from src.protocol import Start, format_protocol
 # logging setting
 setup_logging()
 logger = logging.getLogger("main")
-logger.setLevel(logging.INFO)
 
 
 @click.command()
@@ -43,7 +42,6 @@ def main(protocolfile: str, buffer: int):
     else:
         protocol = None
 
-    logger.info(protocol)
     logger.info("Optimizing schedule...")
     optimizer = Optimizer(buffer)
     optimizer.optimize_schedule(protocol)

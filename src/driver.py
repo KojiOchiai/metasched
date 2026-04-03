@@ -3,7 +3,6 @@ import logging
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger("driver")
-logger.setLevel(logging.INFO)
 
 
 class Driver(ABC):

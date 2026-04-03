@@ -16,7 +16,6 @@ from src.protocol import (
 )
 
 logger = logging.getLogger("executor")
-logger.setLevel(logging.INFO)
 
 
 class Executor:
