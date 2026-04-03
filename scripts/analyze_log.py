@@ -5,9 +5,8 @@ using Plotly, showing scheduled vs actual execution times for each protocol.
 """
 
 import json
-import sys
 import webbrowser
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -151,13 +150,10 @@ def _build_timeline(
             name="Scheduled",
             marker_color="rgba(100, 149, 237, 0.3)",
             hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Scheduled: %{customdata[0]}<br>"
-                "<extra>Scheduled</extra>"
+                "<b>%{y}</b><br>Scheduled: %{customdata[0]}<br><extra>Scheduled</extra>"
             ),
             customdata=[
-                [p.scheduled_time.strftime("%H:%M:%S")]
-                for p in protocols_sorted
+                [p.scheduled_time.strftime("%H:%M:%S")] for p in protocols_sorted
             ],
         )
     )
@@ -218,9 +214,7 @@ def _build_timeline(
                 name="Re-optimize",
                 marker=dict(symbol="diamond", size=8, color="rgba(156, 39, 176, 0.7)"),
                 hovertemplate=(
-                    "Re-optimize<br>"
-                    "Status: %{customdata}<br>"
-                    "<extra></extra>"
+                    "Re-optimize<br>Status: %{customdata}<br><extra></extra>"
                 ),
                 customdata=opt_labels,
                 visible="legendonly",
@@ -271,9 +265,7 @@ def main(
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Output HTML path (default: same dir as log)"
     ),
-    no_open: bool = typer.Option(
-        False, "--no-open", help="Don't auto-open in browser"
-    ),
+    no_open: bool = typer.Option(False, "--no-open", help="Don't auto-open in browser"),
 ):
     """Visualize a metasched log as an interactive HTML timeline."""
     log_path: Path | None = None

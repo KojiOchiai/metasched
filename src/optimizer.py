@@ -131,9 +131,7 @@ class Optimizer:
         oldest_time = get_oldest_time(nodes)
         elapsed_s = int((datetime.now() - oldest_time).total_seconds())
         max_time = (
-            elapsed_s
-            + int(sum_durations(nodes))
-            + len(nodes) * self.buffer_seconds
+            elapsed_s + int(sum_durations(nodes)) + len(nodes) * self.buffer_seconds
         )
         tsc = TimeSecondsConverter(oldest_time)
 
@@ -227,9 +225,7 @@ class Optimizer:
                         )
         else:
             status_name = STATUS_STR.get(status, "UNKNOWN")
-            raise ValueError(
-                f"No optimal schedule found. (status={status_name})"
-            )
+            raise ValueError(f"No optimal schedule found. (status={status_name})")
         return STATUS_STR.get(status, "UNKNOWN")
 
 

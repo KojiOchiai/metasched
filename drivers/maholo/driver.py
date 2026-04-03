@@ -31,7 +31,9 @@ class MaholoDriver(Driver):
     ):
         self.client = client.BioportalClient(host, port)
         self.base_path = base_path
-        self.microscope_image_dir = Path(microscope_image_dir) if microscope_image_dir else None
+        self.microscope_image_dir = (
+            Path(microscope_image_dir) if microscope_image_dir else None
+        )
 
     def path_replace(self, path: str) -> str:
         return path.replace("/", "#")

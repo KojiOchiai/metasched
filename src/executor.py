@@ -52,13 +52,11 @@ def check_incomplete_state(json_storage: JSONStorage) -> IncompleteState | None:
     all_nodes = sum((p.flatten() for p in protocols), [])
     protocol_nodes = [n for n in all_nodes if isinstance(n, Protocol)]
     interrupted = [
-        n.name for n in protocol_nodes
+        n.name
+        for n in protocol_nodes
         if n.started_time is not None and n.finished_time is None
     ]
-    pending = [
-        n.name for n in protocol_nodes
-        if n.started_time is None
-    ]
+    pending = [n.name for n in protocol_nodes if n.started_time is None]
     if interrupted or pending:
         return IncompleteState(
             interrupted_names=interrupted,
