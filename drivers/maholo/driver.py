@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+from src.driver import Driver
+
 from .maholo_api import client, schemas
 from .maholo_api.client import BioportalClientError
 
@@ -13,22 +15,6 @@ class DriverError(Exception):
 class FatalDriverError(DriverError):
     def __init__(self, message):
         super().__init__(message)
-
-
-class Driver:
-    async def move(self, what: str, from_: str, to: str):
-        raise NotImplementedError
-
-    async def run(self, protocol: str) -> list[str] | None:
-        raise NotImplementedError
-
-
-class DummyDriver(Driver):
-    async def move(self, what: str, from_: str, to: str):
-        pass
-
-    async def run(self, protocol: str):
-        pass
 
 
 class MaholoDriver(Driver):

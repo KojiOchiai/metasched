@@ -1,76 +1,45 @@
 import asyncio
 import logging
-
-import click
-
-from drivers.maholo.driver import MaholoDriver
-from src.settings import maholo_settings
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger("driver")
 logger.setLevel(logging.INFO)
 
 
-async def execute_task_dummy(task_name: str) -> str:
-    logger.info(
-        {"function": "execute_task_dummy", "type": "start", "task_name": task_name}
-    )
-    await asyncio.sleep(2)  # Simulate task execution time
-    result = "success"
-    logger.info(
-        {
-            "function": "execute_task_dummy",
-            "type": "end",
-            "task_name": task_name,
-            "result": result,
-        }
-    )
-    return result
+class Driver(ABC):
+    @abstractmethod
+    async def run(self, protocol: str) -> list[str] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def move(self, what: str, from_: str, to: str):
+        raise NotImplementedError
 
 
-driver = MaholoDriver(
-    host=maholo_settings.host,
-    port=maholo_settings.port,
-    base_path=maholo_settings.base_path,
-    microscope_image_dir=maholo_settings.microscope_image_dir,
-)
+class DummyDriver(Driver):
+    async def run(self, protocol: str) -> list[str] | None:
+        logger.info(
+            {"function": "DummyDriver.run", "type": "start", "protocol": protocol}
+        )
+        await asyncio.sleep(2)
+        logger.info(
+            {"function": "DummyDriver.run", "type": "end", "protocol": protocol}
+        )
+        return None
+
+    async def move(self, what: str, from_: str, to: str):
+        pass
 
 
-async def execute_task_maholo(task_name: str) -> str:
-    logger.info(
-        {"function": "execute_task_maholo", "type": "start", "task_name": task_name}
-    )
-    result = await driver.run(task_name)
-    logger.info(
-        {
-            "function": "execute_task_maholo",
-            "type": "end",
-            "task_name": task_name,
-            "result": result,
-        }
-    )
-    return str(result)
+def create_driver(name: str) -> Driver:
+    if name == "maholo":
+        from drivers.maholo.driver import MaholoDriver
+        from src.settings import maholo_settings
 
-
-@click.command()
-@click.argument("task_name", type=str)
-@click.option(
-    "--driver",
-    type=str,
-    default="dummy",
-    help="Driver to use. maholo/dummy (default: dummy)",
-)
-def main(task_name: str, driver: str = "dummy") -> None:
-    if driver == "dummy":
-        asyncio.run(execute_task_dummy(task_name))
-    else:
-        asyncio.run(execute_task_maholo(task_name))
-
-
-if __name__ == "__main__":
-    from src.logging_config import setup_logging
-
-    setup_logging()
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-
-    main()
+        return MaholoDriver(
+            host=maholo_settings.host,
+            port=maholo_settings.port,
+            base_path=maholo_settings.base_path,
+            microscope_image_dir=maholo_settings.microscope_image_dir,
+        )
+    return DummyDriver()

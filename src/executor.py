@@ -2,9 +2,8 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable
-
 from src.awaitlist import ATask, AwaitList
+from src.driver import Driver
 from src.json_storage import JSONStorage
 from src.optimizer import Optimizer
 from src.protocol import (
@@ -24,14 +23,14 @@ class Executor:
     def __init__(
         self,
         optimizer: Optimizer,
-        driver: Callable[[str], Awaitable[str]],
+        driver: Driver,
         json_storage: JSONStorage,
         resume: bool = False,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
         self.optimizer = optimizer
-        self.driver: Callable[[str], Awaitable[str]] = driver
+        self.driver = driver
         self.json_storage = json_storage
         if resume:
             data = self.json_storage.load()
@@ -121,7 +120,7 @@ class Executor:
         # execute
         protocol_name: str = current_protocol.name
         current_protocol.started_time = datetime.now()
-        result = await self.driver(protocol_name)
+        result = await self.driver.run(protocol_name)
         current_protocol.finished_time = datetime.now()
         logger.info(
             {
@@ -142,7 +141,7 @@ class Executor:
 
 
 async def main() -> None:
-    from src.driver import execute_task_dummy
+    from src.driver import DummyDriver
     from src.json_storage import LocalJSONStorage
 
     s1 = Start()
@@ -162,7 +161,7 @@ async def main() -> None:
 
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=10),
-        driver=execute_task_dummy,
+        driver=DummyDriver(),
         json_storage=LocalJSONStorage(),
     )
     await executor.add_protocol(s1)

@@ -4,7 +4,7 @@ import logging
 
 import click
 
-from src.driver import execute_task_dummy, execute_task_maholo
+from src.driver import create_driver
 from src.executor import Executor
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
@@ -82,10 +82,9 @@ def main(
         protocol = None
 
     print(resume)
-    driver_func = execute_task_maholo if driver == "maholo" else execute_task_dummy
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
-        driver=driver_func,
+        driver=create_driver(driver),
         json_storage=LocalJSONStorage(payloaddir),
         resume=resume,
     )
