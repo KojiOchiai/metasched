@@ -1,6 +1,8 @@
 import logging
+from pathlib import Path
+from typing import Annotated
 
-import click
+import typer
 
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
@@ -11,15 +13,15 @@ setup_logging()
 logger = logging.getLogger("main")
 
 
-@click.command()
-@click.option(
-    "--payloaddir",
-    type=click.Path(),
-    default="payloads",
-    help="Directory to store payloads. If not set, payloads will be searched in the ./payloads directory",
-)
-def main(payloaddir: str):
-    json_storage = LocalJSONStorage(payloaddir)
+def main(
+    payloaddir: Annotated[
+        Path,
+        typer.Option(
+            help="Directory to store payloads. If not set, payloads will be searched in the ./payloads directory"
+        ),
+    ] = Path("payloads"),
+):
+    json_storage = LocalJSONStorage(str(payloaddir))
     data = json_storage.load()
     protocols = [protocol_from_dict(d) for d in data]
     starts = [p for p in protocols if type(p) is Start]
@@ -30,4 +32,4 @@ def main(payloaddir: str):
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

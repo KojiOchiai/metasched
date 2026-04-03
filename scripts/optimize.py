@@ -1,7 +1,9 @@
 import importlib
 import logging
+from pathlib import Path
+from typing import Annotated, Optional
 
-import click
+import typer
 
 from src.console import print_protocol_tree, print_schedule
 from src.logging_config import setup_logging
@@ -13,22 +15,16 @@ setup_logging()
 logger = logging.getLogger("main")
 
 
-@click.command()
-@click.option(
-    "--protocolfile",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Path to the protocol file",
-)
-@click.option(
-    "--buffer",
-    type=int,
-    default=0,
-    help="Buffer time in seconds",
-)
-def main(protocolfile: str, buffer: int):
+def main(
+    protocolfile: Annotated[
+        Optional[Path],
+        typer.Option(help="Path to the protocol file", exists=True, dir_okay=False),
+    ] = None,
+    buffer: Annotated[int, typer.Option(help="Buffer time in seconds")] = 0,
+):
     if protocolfile is not None:
         protocol_module = importlib.import_module(
-            protocolfile.replace("/", ".").replace(".py", "")
+            str(protocolfile).replace("/", ".").replace(".py", "")
         )
         # find start object from the module
         protocol: Start | None = next(
@@ -50,4 +46,4 @@ def main(protocolfile: str, buffer: int):
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

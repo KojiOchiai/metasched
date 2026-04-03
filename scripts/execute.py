@@ -1,8 +1,10 @@
 import asyncio
 import importlib
 import logging
+from pathlib import Path
+from typing import Annotated, Optional
 
-import click
+import typer
 
 from src.driver import create_driver
 from src.executor import Executor
@@ -21,51 +23,34 @@ async def aloop(executor: Executor):
     await executor.loop()
 
 
-@click.command()
-@click.option(
-    "--protocolfile",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Path to the protocol file",
-)
-@click.option(
-    "--buffer",
-    type=int,
-    default=0,
-    help="Buffer time in seconds",
-)
-@click.option(
-    "--resume",
-    is_flag=True,
-    help="Load existing schedule from file",
-)
-@click.option(
-    "--driver",
-    type=str,
-    default="dummy",
-    help="Driver to use. maholo/dummy (default: dummy)",
-)
-@click.option(
-    "--payloaddir",
-    type=click.Path(),
-    default="payloads",
-    help="Directory to store payloads. If not set, payloads will be stored in the ./payloads directory",
-)
 def main(
-    protocolfile: str,
-    buffer: int,
-    resume: bool,
-    driver: str,
-    payloaddir: str,
+    protocolfile: Annotated[
+        Optional[Path],
+        typer.Option(help="Path to the protocol file", exists=True, dir_okay=False),
+    ] = None,
+    buffer: Annotated[int, typer.Option(help="Buffer time in seconds")] = 0,
+    resume: Annotated[
+        bool, typer.Option(help="Load existing schedule from file")
+    ] = False,
+    driver: Annotated[
+        str, typer.Option(help="Driver to use. maholo/dummy (default: dummy)")
+    ] = "dummy",
+    payloaddir: Annotated[
+        Path,
+        typer.Option(
+            help="Directory to store payloads. If not set, payloads will be stored in the ./payloads directory"
+        ),
+    ] = Path("payloads"),
 ):
     # validate options
     if not (protocolfile or resume):
-        raise click.UsageError("Either --protocolfile or --resume must be specified.")
+        raise typer.BadParameter("Either --protocolfile or --resume must be specified.")
     if protocolfile and resume:
-        raise click.UsageError("--protocolfile and --resume cannot be used together.")
+        raise typer.BadParameter("--protocolfile and --resume cannot be used together.")
 
     if protocolfile is not None:
         protocol_module = importlib.import_module(
-            protocolfile.replace("/", ".").replace(".py", "")
+            str(protocolfile).replace("/", ".").replace(".py", "")
         )
         # find start object from the module
         protocol: Start | None = next(
@@ -82,7 +67,7 @@ def main(
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),
-        json_storage=LocalJSONStorage(payloaddir),
+        json_storage=LocalJSONStorage(str(payloaddir)),
         resume=resume,
     )
     if protocol is not None:
@@ -91,4 +76,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
