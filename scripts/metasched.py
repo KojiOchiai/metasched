@@ -53,12 +53,10 @@ def execute(
     driver: Annotated[
         str, typer.Option(help="Driver to use. maholo/dummy (default: dummy)")
     ] = "dummy",
-    payloaddir: Annotated[
+    statefile: Annotated[
         Path,
-        typer.Option(
-            help="Directory to store payloads. If not set, payloads will be stored in the ./payloads directory"
-        ),
-    ] = Path("payloads"),
+        typer.Option(help="Path to the state file for saving/resuming schedules"),
+    ] = Path(".state.json"),
 ):
     """Execute a schedule with real-time task execution."""
     if not (protocolfile or resume):
@@ -75,7 +73,7 @@ def execute(
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),
-        json_storage=LocalJSONStorage(payloaddir),
+        json_storage=LocalJSONStorage(statefile),
         resume=resume,
     )
 
@@ -90,20 +88,18 @@ def execute(
 
 @app.command(name="print-schedule")
 def print_schedule_cmd(
-    payloaddir: Annotated[
+    statefile: Annotated[
         Path,
-        typer.Option(
-            help="Directory to store payloads. If not set, payloads will be searched in the ./payloads directory"
-        ),
-    ] = Path("payloads"),
+        typer.Option(help="Path to the state file to read"),
+    ] = Path(".state.json"),
 ):
-    """Read and display existing schedule from stored payloads."""
-    json_storage = LocalJSONStorage(payloaddir)
+    """Read and display existing schedule from stored state file."""
+    json_storage = LocalJSONStorage(statefile)
     data = json_storage.load()
-    protocols = [protocol_from_dict(d) for d in data]
+    protocols = [protocol_from_dict(d) for d in data["protocols"]]
     starts = [p for p in protocols if type(p) is Start]
     if len(starts) == 0:
-        raise ValueError("No Start protocol found in the payloads")
+        raise ValueError("No Start protocol found in the state file")
     for start in starts:
         print_schedule(start)
 

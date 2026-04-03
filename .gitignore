@@ -213,3 +213,4 @@ payloads/
 protocols_sim.txt
 protocols/
 logs/
+.state.json

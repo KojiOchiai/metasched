@@ -33,12 +33,10 @@ def main(
     driver: Annotated[
         str, typer.Option(help="Driver to use. maholo/dummy (default: dummy)")
     ] = "dummy",
-    payloaddir: Annotated[
+    statefile: Annotated[
         Path,
-        typer.Option(
-            help="Directory to store payloads. If not set, payloads will be stored in the ./payloads directory"
-        ),
-    ] = Path("payloads"),
+        typer.Option(help="Path to the state file for saving/resuming schedules"),
+    ] = Path(".state.json"),
 ):
     # validate options
     if not (protocolfile or resume):
@@ -54,7 +52,7 @@ def main(
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),
-        json_storage=LocalJSONStorage(payloaddir),
+        json_storage=LocalJSONStorage(statefile),
         resume=resume,
     )
     if protocol is not None:

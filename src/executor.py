@@ -37,9 +37,52 @@ class Executor:
         self.json_storage = json_storage
         if resume:
             data = self.json_storage.load()
-            protocols = [protocol_from_dict(d) for d in data]
+            metadata = data.get("metadata", {})
+            if metadata:
+                self.optimizer.buffer_seconds = metadata.get(
+                    "buffer_seconds", self.optimizer.buffer_seconds
+                )
+                self.optimizer.time_loss_weight = metadata.get(
+                    "time_loss_weight", self.optimizer.time_loss_weight
+                )
+                self.optimizer.max_solve_time = metadata.get(
+                    "max_solve_time", self.optimizer.max_solve_time
+                )
+            protocols = [protocol_from_dict(d) for d in data["protocols"]]
             self.protocols = [p for p in protocols if type(p) is Start]
+            self._reset_interrupted_protocols()
             asyncio.run(self.optimize())
+
+    def _reset_interrupted_protocols(self) -> None:
+        """Reset protocols that were started but not finished (interrupted)."""
+        for start in self.protocols:
+            for node in start.flatten():
+                if (
+                    isinstance(node, Protocol)
+                    and node.started_time is not None
+                    and node.finished_time is None
+                ):
+                    logger.warning(
+                        {
+                            "function": "_reset_interrupted_protocols",
+                            "protocol_id": str(node.id),
+                            "protocol_name": node.name,
+                            "message": "Resetting interrupted protocol for re-execution",
+                        }
+                    )
+                    node.started_time = None
+
+    def _save_state(self) -> str:
+        """Save current protocol state with optimizer metadata."""
+        data = {
+            "metadata": {
+                "buffer_seconds": self.optimizer.buffer_seconds,
+                "time_loss_weight": self.optimizer.time_loss_weight,
+                "max_solve_time": self.optimizer.max_solve_time,
+            },
+            "protocols": [p.model_dump(mode="json") for p in self.protocols],
+        }
+        return self.json_storage.save(data)
 
     async def add_protocol(self, protocol: Start) -> Start:
         # check duplicate
@@ -89,9 +132,7 @@ class Executor:
         await self.await_list.add_task(
             execution_time=next_protocol.scheduled_time, content=str(next_protocol.id)
         )
-        filepath = self.json_storage.save(
-            [p.model_dump(mode="json") for p in self.protocols]
-        )
+        filepath = self._save_state()
         logger.info(
             {
                 "function": "optimize",
@@ -126,6 +167,7 @@ class Executor:
         # execute
         protocol_name: str = current_protocol.name
         current_protocol.started_time = datetime.now()
+        self._save_state()
         result = await self.driver.run(protocol_name)
         current_protocol.finished_time = datetime.now()
         logger.info(

@@ -1,81 +1,39 @@
 import json
-import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class JSONStorage(ABC):
-    """
-    Abstract base class for storing and retrieving JSON data.
-    Implement concrete subclasses for each storage backend
-    (e.g. local file system, S3, database).
-    """
+    """Abstract base class for storing and retrieving JSON data."""
 
     @abstractmethod
-    def save(self, data: Any, key: Optional[str] = None) -> str:
-        """
-        Save JSON data.
-
-        Args:
-            data: A Python object (JSON serializable).
-            key: Optional unique key or identifier for the storage location.
-
-        Returns:
-            str: The key or path reference to the saved data.
-        """
+    def save(self, data: Any) -> str:
+        """Save JSON data. Returns the path or reference to the saved data."""
         pass
 
     @abstractmethod
-    def load(self, key: str | None = None) -> Any:
-        """
-        Load JSON data.
-
-        Args:
-            key: The key or path returned by the save() method.
-
-        Returns:
-            Any: The loaded Python object.
-        """
+    def load(self) -> Any:
+        """Load JSON data."""
         pass
 
 
 class LocalJSONStorage(JSONStorage):
     """
-    A concrete implementation of JSONStorage
-    that stores JSON files on the local file system.
+    Persists state to a single JSON file, overwritten on every save.
     """
 
-    def __init__(self, base_dir: str | Path = "payloads"):
-        # Directory where JSON files will be stored
-        self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, filepath: str | Path = ".state.json"):
+        self.filepath = Path(filepath)
 
-    def save(self, data: Any, key: Optional[str] = None) -> str:
-        # Generate a unique key if not provided
-        if key is None:
-            key = str(uuid.uuid4())
-            key = datetime.now().strftime("%Y%m%d_%H%M%S_%f_") + str(key)
-
-        # Build the file path
-        filepath = self.base_dir / f"{key}.json"
-
-        # Write JSON to file with UTF-8 encoding
-        with open(filepath, "w", encoding="utf-8") as f:
+    def save(self, data: Any) -> str:
+        self.filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        return str(self.filepath)
 
-        # Return the file path as a string
-        return str(filepath)
-
-    def load(self, key: str | None = None) -> Any:
-        if key is None:
-            filenames = list(self.base_dir.glob("*.json"))
-            if not filenames:
-                raise FileNotFoundError("No JSON files found in the storage directory")
-            filepath = max(filenames, key=lambda f: f.stat().st_mtime)
-        else:
-            filepath = self.base_dir / f"{key}.json"
-
-        with open(filepath, "r", encoding="utf-8") as f:
+    def load(self) -> Any:
+        if not self.filepath.exists():
+            raise FileNotFoundError(f"State file not found: {self.filepath}")
+        with open(self.filepath, "r", encoding="utf-8") as f:
             return json.load(f)

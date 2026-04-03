@@ -15,19 +15,17 @@ logger = logging.getLogger("main")
 
 
 def main(
-    payloaddir: Annotated[
+    statefile: Annotated[
         Path,
-        typer.Option(
-            help="Directory to store payloads. If not set, payloads will be searched in the ./payloads directory"
-        ),
-    ] = Path("payloads"),
+        typer.Option(help="Path to the state file to read"),
+    ] = Path(".state.json"),
 ):
-    json_storage = LocalJSONStorage(payloaddir)
+    json_storage = LocalJSONStorage(statefile)
     data = json_storage.load()
-    protocols = [protocol_from_dict(d) for d in data]
+    protocols = [protocol_from_dict(d) for d in data["protocols"]]
     starts = [p for p in protocols if type(p) is Start]
     if len(starts) == 0:
-        raise ValueError("No Start protocol found in the payloads")
+        raise ValueError("No Start protocol found in the state file")
     for start in starts:
         print_schedule(start)
 
