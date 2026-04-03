@@ -39,19 +39,26 @@ uv run metasched print-schedule
 
 ## Resume
 ```bash
-uv run metasched execute --resume --buffer 3
+uv run metasched execute --resume
 ```
 
 
 # maholoでの実行
 ## 環境変数の設定
 プロジェクトルートに`.env`ファイルを作成し、以下の変数を設定する。
+
+**必須:**
 ```
 MAHOLO_HOST=xx.x.x.xx                                          # IP address of maholo FAPC
 MAHOLO_PORT=63001                                               # port that used by bioportal
 MAHOLO_BASE_PATH=C:\BioApl\DataSet\Path\for\Protocols\          # directory path for protocols
-MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/path/for/picture               # directory path for picture (optional)
 ```
+
+**オプション:**
+```
+MAHOLO_MICROSCOPE_IMAGE_DIR=/mnt/path/for/picture               # 顕微鏡画像の保存先ディレクトリ
+```
+`MAHOLO_MICROSCOPE_IMAGE_DIR`は省略可。設定すると顕微鏡画像のパスがログに記録される。未設定でも動作に影響はない。
 
 ### MAHOLO_MICROSCOPE_IMAGE_DIRの設定例
 実際にアクセスするフォルダ構成：/mnt//nikon_save/2025_12_05/tiling/220513_test.tif
