@@ -32,7 +32,10 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-No test suite exists yet.
+```bash
+# Run tests
+uv run pytest tests/ -v
+```
 
 ## Architecture
 

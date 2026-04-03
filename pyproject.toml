@@ -33,6 +33,8 @@ packages = ["src", "drivers", "scripts"]
 
 [tool.uv]
 dev-dependencies = [
+    "pytest-asyncio>=1.3.0",
+    "pytest>=9.0.2",
     "ruff>=0.15.9",
     "ty>=0.0.28",
 ]
