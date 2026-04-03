@@ -130,8 +130,13 @@ class Optimizer:
 
     def optimize_schedule(self, start: protocol.Start) -> str:
         nodes = start.flatten()
-        max_time = int(sum_durations(nodes)) + len(nodes) * self.buffer_seconds
         oldest_time = get_oldest_time(nodes)
+        elapsed_s = int((datetime.now() - oldest_time).total_seconds())
+        max_time = (
+            elapsed_s
+            + int(sum_durations(nodes))
+            + len(nodes) * self.buffer_seconds
+        )
         tsc = TimeSecondsConverter(oldest_time)
 
         # Build flat lookup dicts from domain tree
