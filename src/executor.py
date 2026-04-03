@@ -35,7 +35,6 @@ class Executor:
         self.optimizer = optimizer
         self.driver = driver
         self.json_storage = json_storage
-        self._live: Live | None = None
         if resume:
             data = self.json_storage.load()
             protocols = [protocol_from_dict(d) for d in data]
@@ -81,7 +80,6 @@ class Executor:
         if len(protocols) == 0:
             logger.info({"function": "optimize", "type": "end", "message": "no tasks"})
             await self.await_list.mark_done()
-            self._update_display()
             return
         next_protocol = min(protocols, key=lambda x: x.scheduled_time or datetime.max)
 
@@ -104,7 +102,6 @@ class Executor:
                 "next_protocol_scheduled_time": next_protocol.scheduled_time.isoformat(),
             }
         )
-        self._update_display()
 
     async def process_task(self, task: ATask):
         logger.info(
@@ -127,7 +124,6 @@ class Executor:
         # execute
         protocol_name: str = current_protocol.name
         current_protocol.started_time = datetime.now()
-        self._update_display()
         result = await self.driver.run(protocol_name)
         current_protocol.finished_time = datetime.now()
         logger.info(
@@ -146,36 +142,15 @@ class Executor:
     def _build_display(self):
         return build_live_display(self.protocols)
 
-    def _update_display(self):
-        if self._live is not None:
-            self._live.update(self._build_display())
-
-    async def _refresh_loop(self, live: Live):
-        """Periodically refresh the Live display for countdown timers."""
-        try:
-            while True:
-                await asyncio.sleep(1)
-                live.update(self._build_display())
-        except asyncio.CancelledError:
-            pass
-
     async def loop(self) -> None:
         with Live(
             self._build_display(),
             console=console,
             refresh_per_second=1,
-        ) as live:
-            self._live = live
-            refresh_task = asyncio.create_task(self._refresh_loop(live))
-            try:
-                async for task in self.await_list.wait_for_next_task():
-                    await self.process_task(task)
-                    live.update(self._build_display())
-            finally:
-                refresh_task.cancel()
-                await refresh_task
-                self._live = None
-        # Print final state after Live exits
+            get_renderable=self._build_display,
+        ):
+            async for task in self.await_list.wait_for_next_task():
+                await self.process_task(task)
         console.print(self._build_display())
 
 

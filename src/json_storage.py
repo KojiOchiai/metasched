@@ -48,7 +48,7 @@ class LocalJSONStorage(JSONStorage):
     that stores JSON files on the local file system.
     """
 
-    def __init__(self, base_dir: str = "payloads"):
+    def __init__(self, base_dir: str | Path = "payloads"):
         # Directory where JSON files will be stored
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,9 @@
+import importlib
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from pathlib import Path
 from typing import Generic, Optional, Self, TypeVar, Union
 from uuid import UUID, uuid4
 
@@ -325,6 +327,22 @@ def format_protocol(start: Start) -> str:
                 f"{post_node.name}\n"
             )
     return txt
+
+
+def load_protocol(protocolfile: Path) -> Start:
+    """Load a protocol from a Python file and return the Start object."""
+    protocol_module = importlib.import_module(
+        str(protocolfile).replace("/", ".").replace(".py", "")
+    )
+    protocol: Start | None = next(
+        (obj for obj in vars(protocol_module).values() if isinstance(obj, Start)),
+        None,
+    )
+    if protocol is None:
+        raise ValueError(
+            f"Protocol type 'Start' not found in the module '{protocolfile}'."
+        )
+    return protocol
 
 
 if __name__ == "__main__":

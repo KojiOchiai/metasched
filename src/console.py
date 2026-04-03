@@ -34,8 +34,9 @@ def print_protocol_tree(start: Start) -> None:
 
 
 def print_schedule(start: Start) -> None:
+    all_nodes = start.flatten()
     protocol_nodes: list[Protocol] = [
-        node for node in start.flatten() if type(node) is Protocol
+        node for node in all_nodes if type(node) is Protocol
     ]
     sorted_nodes = sorted(
         protocol_nodes, key=lambda x: x.scheduled_time or datetime.max
@@ -90,10 +91,7 @@ def print_schedule(start: Start) -> None:
 
     console.print(table)
 
-    # Delay section
-    delay_nodes: list[Delay] = [
-        node for node in start.flatten() if isinstance(node, Delay)
-    ]
+    delay_nodes: list[Delay] = [node for node in all_nodes if isinstance(node, Delay)]
     if not delay_nodes:
         return
 

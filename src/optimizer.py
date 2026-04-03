@@ -209,20 +209,15 @@ class Optimizer:
 
     def optimize_schedule(self, start: protocol.Start) -> str:
         nodes = start.flatten()
-        max_time = (
-            int(sum_durations(start.flatten())) + len(nodes) * self.buffer_seconds
-        )
-        oldest_time = get_oldest_time(start.flatten())
+        max_time = int(sum_durations(nodes)) + len(nodes) * self.buffer_seconds
+        oldest_time = get_oldest_time(nodes)
         tsc = TimeSecondsConverter(oldest_time)
         opt_protocol = protocol_to_opt(start, tsc, self.buffer_seconds)
 
         model = cp_model.CpModel()
-        protocol_nodes = [
-            node for node in opt_protocol.flatten() if isinstance(node, Protocol)
-        ]
-        delay_nodes = [
-            node for node in opt_protocol.flatten() if isinstance(node, Delay)
-        ]
+        opt_nodes = opt_protocol.flatten()
+        protocol_nodes = [node for node in opt_nodes if isinstance(node, Protocol)]
+        delay_nodes = [node for node in opt_nodes if isinstance(node, Delay)]
 
         intervals = []
         makespan = model.NewIntVar(0, max_time, "makespan")

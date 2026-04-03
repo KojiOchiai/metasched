@@ -21,7 +21,7 @@ def main(
         ),
     ] = Path("payloads"),
 ):
-    json_storage = LocalJSONStorage(str(payloaddir))
+    json_storage = LocalJSONStorage(payloaddir)
     data = json_storage.load()
     protocols = [protocol_from_dict(d) for d in data]
     starts = [p for p in protocols if type(p) is Start]

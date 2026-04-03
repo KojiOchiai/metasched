@@ -1,5 +1,4 @@
 import asyncio
-import importlib
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
@@ -11,9 +10,8 @@ from src.executor import Executor
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
-from src.protocol import Start
+from src.protocol import load_protocol
 
-# logging setting
 setup_logging()
 logger = logging.getLogger("main")
 
@@ -49,25 +47,14 @@ def main(
         raise typer.BadParameter("--protocolfile and --resume cannot be used together.")
 
     if protocolfile is not None:
-        protocol_module = importlib.import_module(
-            str(protocolfile).replace("/", ".").replace(".py", "")
-        )
-        # find start object from the module
-        protocol: Start | None = next(
-            (obj for obj in vars(protocol_module).values() if isinstance(obj, Start)),
-            None,
-        )
-        if protocol is None:
-            raise ValueError(
-                f"Protocol type 'Start' not found in the module '{protocolfile}'."
-            )
+        protocol = load_protocol(protocolfile)
         logger.info("Loaded protocol from %s", protocolfile)
     else:
         protocol = None
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),
-        json_storage=LocalJSONStorage(str(payloaddir)),
+        json_storage=LocalJSONStorage(payloaddir),
         resume=resume,
     )
     if protocol is not None:

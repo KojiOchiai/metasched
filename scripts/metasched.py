@@ -1,5 +1,4 @@
 import asyncio
-import importlib
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
@@ -12,29 +11,12 @@ from src.executor import Executor
 from src.json_storage import LocalJSONStorage
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
-from src.protocol import Start, format_protocol, protocol_from_dict
+from src.protocol import Start, format_protocol, load_protocol, protocol_from_dict
 
-# logging setting
 setup_logging()
 logger = logging.getLogger("main")
 
 app = typer.Typer(help="metasched - constraint-based scheduling optimizer and executor")
-
-
-def load_protocol(protocolfile: Path) -> Start:
-    """Load a protocol from a Python file and return the Start object."""
-    protocol_module = importlib.import_module(
-        str(protocolfile).replace("/", ".").replace(".py", "")
-    )
-    protocol: Start | None = next(
-        (obj for obj in vars(protocol_module).values() if isinstance(obj, Start)),
-        None,
-    )
-    if protocol is None:
-        raise ValueError(
-            f"Protocol type 'Start' not found in the module '{protocolfile}'."
-        )
-    return protocol
 
 
 @app.command()
@@ -93,7 +75,7 @@ def execute(
     executor = Executor(
         optimizer=Optimizer(buffer_seconds=buffer),
         driver=create_driver(driver),
-        json_storage=LocalJSONStorage(str(payloaddir)),
+        json_storage=LocalJSONStorage(payloaddir),
         resume=resume,
     )
 
@@ -116,7 +98,7 @@ def print_schedule_cmd(
     ] = Path("payloads"),
 ):
     """Read and display existing schedule from stored payloads."""
-    json_storage = LocalJSONStorage(str(payloaddir))
+    json_storage = LocalJSONStorage(payloaddir)
     data = json_storage.load()
     protocols = [protocol_from_dict(d) for d in data]
     starts = [p for p in protocols if type(p) is Start]
