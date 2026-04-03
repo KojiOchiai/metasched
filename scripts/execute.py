@@ -27,26 +27,26 @@ async def aloop(executor: Executor):
     await executor.loop()
 
 
-def _prompt_resume(state: IncompleteState) -> tuple[bool, InterruptedAction]:
-    """Ask the user whether to resume and how to handle interrupted tasks."""
+def _show_incomplete_state(state: IncompleteState) -> None:
+    """Display information about incomplete tasks."""
     typer.echo("Previous incomplete run found.")
     if state.interrupted_names:
         typer.echo(f"  Interrupted tasks: {', '.join(state.interrupted_names)}")
     if state.pending_names:
         typer.echo(f"  Pending tasks: {', '.join(state.pending_names)}")
-    resume = typer.confirm("Resume?")
-    if not resume:
-        return False, InterruptedAction.RETRY
-    action = InterruptedAction.RETRY
-    if state.interrupted_names:
-        action = InterruptedAction(
-            typer.prompt(
-                "How to handle interrupted tasks?",
-                type=click.Choice(["retry", "skip"]),
-                default="retry",
-            )
+
+
+def _prompt_interrupted_action(state: IncompleteState) -> InterruptedAction:
+    """Ask the user how to handle interrupted tasks."""
+    if not state.interrupted_names:
+        return InterruptedAction.RETRY
+    return InterruptedAction(
+        typer.prompt(
+            "How to handle interrupted tasks?",
+            type=click.Choice(["retry", "skip"]),
+            default="retry",
         )
-    return True, action
+    )
 
 
 def main(
@@ -71,12 +71,14 @@ def main(
     ] = InterruptedAction.RETRY,
 ):
     json_storage = LocalJSONStorage(statefile)
+    incomplete = check_incomplete_state(json_storage)
 
-    # If --resume is not explicitly set, check for incomplete previous run
-    if not resume and protocolfile is not None:
-        incomplete = check_incomplete_state(json_storage)
-        if incomplete is not None:
-            resume, interrupted = _prompt_resume(incomplete)
+    if incomplete is not None:
+        _show_incomplete_state(incomplete)
+        if not resume and protocolfile is not None:
+            resume = typer.confirm("Resume?")
+        if resume and incomplete.interrupted_names:
+            interrupted = _prompt_interrupted_action(incomplete)
 
     if not (protocolfile or resume):
         raise typer.BadParameter("Either --protocolfile or --resume must be specified.")
