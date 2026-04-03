@@ -18,7 +18,7 @@ class FatalDriverError(DriverError):
 
 
 class MaholoDriver(Driver):
-    microscope_image_dir: Path
+    microscope_image_dir: Path | None
     base_path: str
     max_retries = 10
 
@@ -27,11 +27,11 @@ class MaholoDriver(Driver):
         host: str = "localhost",
         port: int = 63001,
         base_path: str = "C:\\BioApl\\DataSet\\proteo-03\\Protocol\\",
-        microscope_image_dir: str = "./nikon_save/",
+        microscope_image_dir: str | None = None,
     ):
         self.client = client.BioportalClient(host, port)
         self.base_path = base_path
-        self.microscope_image_dir = Path(microscope_image_dir)
+        self.microscope_image_dir = Path(microscope_image_dir) if microscope_image_dir else None
 
     def path_replace(self, path: str) -> str:
         return path.replace("/", "#")
@@ -51,7 +51,7 @@ class MaholoDriver(Driver):
                 await self._run(client, protocol)
         except BioportalClientError:
             raise FatalDriverError("Connection to maholo failed")
-        if "getimage" in protocol:
+        if "getimage" in protocol and self.microscope_image_dir:
             image_dirs = list(self.microscope_image_dir.glob("*/tiling/"))
             if len(image_dirs) == 0:
                 raise DriverError("No image directory found")
