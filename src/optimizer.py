@@ -58,11 +58,9 @@ def _create_delay_loss(
     delay_node: protocol.Delay,
     dv: DelayVars,
     pvars: dict[UUID, ProtocolVars],
-    max_duration_times: int = 2,
+    max_time: int = 0,
 ) -> cp_model.IntVar:
-    dv.loss = model.NewIntVar(
-        0, dv.duration_s * max_duration_times, f"{delay_node.id}_loss"
-    )
+    dv.loss = model.NewIntVar(0, max_time, f"{delay_node.id}_loss")
     pre = delay_node.pre_node
     if isinstance(pre, protocol.Protocol) and pre.id in pvars:
         pre_pv = pvars[pre.id]
@@ -150,7 +148,7 @@ class Optimizer:
                     else None
                 )
                 finished_s = (
-                    int(tsc.time_to_seconds(node.finished_time) + self.buffer_seconds)
+                    int(tsc.time_to_seconds(node.finished_time))
                     if node.finished_time
                     else None
                 )
@@ -210,7 +208,8 @@ class Optimizer:
         # Delay loss constraints
         delay_nodes = [n for n in nodes if isinstance(n, protocol.Delay)]
         losses = [
-            _create_delay_loss(model, dn, dvars[dn.id], pvars) for dn in delay_nodes
+            _create_delay_loss(model, dn, dvars[dn.id], pvars, max_time)
+            for dn in delay_nodes
         ]
 
         model.minimize(makespan + self.time_loss_weight * sum(losses))
@@ -227,7 +226,10 @@ class Optimizer:
                             solver.Value(pv.start_time)
                         )
         else:
-            raise ValueError("No optimal schedule found.")
+            status_name = STATUS_STR.get(status, "UNKNOWN")
+            raise ValueError(
+                f"No optimal schedule found. (status={status_name})"
+            )
         return STATUS_STR.get(status, "UNKNOWN")
 
 
