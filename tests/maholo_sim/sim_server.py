@@ -52,8 +52,6 @@ protocol_patterns = [
 protocols = list(
     dict.fromkeys(sum([model.expand_string(pp) for pp in protocol_patterns], []))
 )
-with open("protocols_sim.txt", "w") as f:
-    f.write("\n".join(protocols))
 
 
 class CellCultureMaholoModel(model.ProtocolModel):
