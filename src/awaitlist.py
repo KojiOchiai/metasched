@@ -38,6 +38,7 @@ class AwaitList:
         self.tasks: list[ATask] = []
         # For task notification
         self.condition = asyncio.Condition()
+        self._done = False
 
     def to_dict(self) -> dict:
         """
@@ -99,6 +100,12 @@ class AwaitList:
                     return True
             return False
 
+    async def mark_done(self) -> None:
+        """Signal that no more tasks will be added. The generator will exit."""
+        async with self.condition:
+            self._done = True
+            self.condition.notify_all()
+
     async def cancel_task(self, task_id: uuid.UUID) -> bool:
         """
         Cancel a task by its ID.
@@ -130,6 +137,8 @@ class AwaitList:
                 yield active_task  # To avoid locking, yield outside of the condition.
                 active_task = None
             async with self.condition:  # Ensure the lock is acquired
+                if not self.tasks and self._done:
+                    return
                 if self.tasks:
                     now = datetime.now()
                     next_task = self.tasks[0]

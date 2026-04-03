@@ -12,7 +12,9 @@
       "Bash(uvx ty:*)",
       "Bash(uv sync:*)",
       "Bash(uv add:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(jj split:*)",
+      "Bash(jj restore:*)"
     ]
   }
 }
