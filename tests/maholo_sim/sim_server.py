@@ -18,36 +18,44 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 protocol_patterns = [
-    # setup
-    "move_plate6well_LS#9#LifterPlate#1_Co2IB#{1..2}#{1..20}",
-    # loading/cleanup
-    "move_plate6well_Co2IB#{1..2}#{1..20}_LS#{9..10}#LifterPlate#1",
-    "move_plate6well_LS#{9..10}#LifterPlate#1_Co2IB#{1..2}#{1..20}",
-    "move_plate6well_LS#9#LifterPlate#1_Dustbox#1",
-    "move_plate6well_LS#9#LifterPlate#1_LS#{13..24}#LifterPlate#1",
-    "move_tube50ml_CoolIB#{1..18}_AB#{1..3}",
-    "move_tube50ml_CoolIB#{1..18}_LS#1#LifterTube50ml#1",
-    "move_tube50ml_LS#{2..3}#LifterTube50ml#{1..3}_AB#4",
-    "move_tube50ml_LS#{5..6}#LifterTube50ml#{1..3}_AB#4",
-    "move_tube50ml_LS#1#LifterTube50ml#1_LS#2#LifterTube50ml#{1..3}",
-    "move_tube50ml_LS#2#LifterTube50ml#{1..3}_LS#1#LifterTube50ml#1",
-    "move_tube50ml_LS#4#LifterTube50ml#{1..3}_LS#1#LifterTube50ml#1",
-    "move_tube50ml_LS#1#LifterTube50ml#1_LS#4#LifterTube50ml#{1..3}",
-    "move_tube50ml_AB#{1..3}_CoolIB#{1..18}",
-    "move_tube50ml_LS#1#LifterTube50ml#1_CoolIB#{1..18}",
-    "move_tube50ml_AB#4_Dustbox#1",
-    "move_tube50ml_AB#4_LS#{2..3}#LifterTube50ml#{1..3}",
-    "move_tube50ml_AB#4_LS#{5..6}#LifterTube50ml#{1..3}",
-    "move_tube1.5ml_LS#12#LifterTube1.5ml#{1..10}_LS#11#LifterTube1.5ml#1",
-    "move_tube1.5ml_LS#11#LifterTube1.5ml#1_Dustbox#1",
-    # protocols
-    "getimage",
-    "platecoating",
-    "mediumchange",
-    "sampling",
-    "ethanolwash",
-    "passage_253g1",
-    "passage_hek293a",
+    # demo
+    "scheduling_{1..5}",
+    # getimage
+    "getimage_plate6well_Co2Incubator#1#{1..8}",
+    # move
+    "move_tube1.5mL_Freezer#24_LifterStocker#12#12",
+    # collection (min)
+    "0min回収",
+    "5min回収",
+    "15min回収_前半",
+    "15min回収_後半",
+    "30min回収_前半",
+    "30min回収_後半",
+    "60min回収_前半",
+    "60min回収_後半",
+    "90min回収_前半",
+    "90min回収_後半",
+    "180min回収_前半",
+    "180min回収_後半",
+    "240min回収_前半",
+    "240min回収_後半",
+    # collection (sec)
+    "0sec回収",
+    "5sec回収",
+    "15sec回収_前半",
+    "15sec回収_後半",
+    "30sec回収_前半",
+    "30sec回収_後半",
+    "60sec回収_前半",
+    "60sec回収_後半",
+    "90sec回収_前半",
+    "90sec回収_後半",
+    "180sec回収_前半",
+    "180sec回収_後半",
+    "240sec回収_前半",
+    "240sec回収_後半",
+    # wash
+    "EtOHwash1_LS#4#1",
 ]
 protocols = list(
     dict.fromkeys(sum([model.expand_string(pp) for pp in protocol_patterns], []))
