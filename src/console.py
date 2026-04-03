@@ -112,7 +112,11 @@ def print_schedule(start: Start) -> None:
             target = delay.duration + delay.offset
             if pre_node.finished_time is not None:
                 pre_finish = pre_node.finished_time
-                actual = post_node.scheduled_time - pre_finish
+                actual = timedelta(
+                    seconds=round(
+                        (post_node.scheduled_time - pre_finish).total_seconds()
+                    )
+                )
                 style = "green" if actual == target else "yellow"
                 actual_str = f"[{style}]{actual}[/]"
             else:
