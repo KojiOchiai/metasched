@@ -26,3 +26,6 @@ def setup_logging(log_dir: str = "logs"):
     )
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
+
+    # Suppress noisy library loggers
+    logging.getLogger("websockets").setLevel(logging.INFO)
