@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 
 from pythonjsonlogger import jsonlogger
-from rich.logging import RichHandler
 
 
 def setup_logging(log_dir: str = "logs"):
@@ -11,16 +10,6 @@ def setup_logging(log_dir: str = "logs"):
     if root_logger.handlers:
         return
     root_logger.setLevel(logging.DEBUG)
-
-    # Console handler: rich, human-readable, INFO+
-    console_handler = RichHandler(
-        level=logging.INFO,
-        show_time=True,
-        show_path=False,
-        markup=True,
-    )
-    console_handler.setLevel(logging.INFO)
-    root_logger.addHandler(console_handler)
 
     # File handler: JSON, all levels
     os.makedirs(log_dir, exist_ok=True)

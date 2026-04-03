@@ -3,9 +3,10 @@ import logging
 
 import click
 
+from src.console import print_protocol_tree, print_schedule
 from src.logging_config import setup_logging
 from src.optimizer import Optimizer
-from src.protocol import Start, format_protocol
+from src.protocol import Start
 
 # logging setting
 setup_logging()
@@ -38,14 +39,14 @@ def main(protocolfile: str, buffer: int):
             raise ValueError(
                 f"Protocol type 'Start' not found in the module '{protocolfile}'."
             )
-        print(protocol)
+        print_protocol_tree(protocol)
     else:
         protocol = None
 
     logger.info("Optimizing schedule...")
     optimizer = Optimizer(buffer)
     optimizer.optimize_schedule(protocol)
-    print(format_protocol(protocol))
+    print_schedule(protocol)
 
 
 if __name__ == "__main__":
