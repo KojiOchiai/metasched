@@ -98,47 +98,6 @@ def print_schedule(start: Start) -> None:
 
     console.print(table)
 
-    delay_nodes: list[Delay] = [node for node in all_nodes if isinstance(node, Delay)]
-    if not delay_nodes:
-        return
-
-    console.print("\n[bold]Delays[/]")
-    dtable = Table(
-        show_header=True, header_style="bold", padding=(0, 1), box=box.HORIZONTALS
-    )
-    dtable.add_column("From")
-    dtable.add_column("To")
-    dtable.add_column("Target", justify="right")
-    dtable.add_column("Actual", justify="right")
-
-    for delay in delay_nodes:
-        pre_node = delay.pre_node
-        if pre_node is None:
-            continue
-        for post_node in delay.post_node:
-            if post_node.scheduled_time is None:
-                continue
-            target = delay.duration + delay.offset
-            if pre_node.finished_time is not None:
-                pre_finish = pre_node.finished_time
-                actual = timedelta(
-                    seconds=round(
-                        (post_node.scheduled_time - pre_finish).total_seconds()
-                    )
-                )
-                style = "green" if actual == target else "yellow"
-                actual_str = f"[{style}]{actual}[/]"
-            else:
-                actual_str = ""
-            dtable.add_row(
-                pre_node.name,
-                post_node.name,
-                str(target),
-                actual_str,
-            )
-
-    console.print(dtable)
-
 
 def build_live_display(protocols: list[Start]) -> Group:
     """Build a Rich renderable showing real-time execution status."""
