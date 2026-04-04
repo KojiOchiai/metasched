@@ -27,9 +27,10 @@ uv run metasched optimize --protocolfile sample_protocols/protocol_parallel_fast
 
 ## 実行
 ```bash
-uv run metasched execute --protocolfile sample_protocols/protocol_parallel_fast.py --buffer 3
+uv run metasched execute --protocolfile sample_protocols/protocol_parallel_fast.py --buffer 3 --driver dummy
 ```
 bufferにはprotocolの間に最低限開けて欲しい秒数を指定する
+driverにはdummy(デフォルト)またはmaholoを指定する
 
 ## スケジュールの確認
 executeを実行したのと同じディレクトリで以下を実行する。実行途中でも確認可能。
