@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from rich import box
 from rich.console import Console, Group
 from rich.progress_bar import ProgressBar
 from rich.table import Table
@@ -64,7 +65,9 @@ def print_schedule(start: Start) -> None:
 
     console.print(f"\n[bold]Schedule[/] [dim](total: {total_duration})[/]")
 
-    table = Table(show_header=True, header_style="bold", padding=(0, 1))
+    table = Table(
+        show_header=True, header_style="bold", padding=(0, 1), box=box.HORIZONTALS
+    )
     table.add_column("Name")
     table.add_column("Offset", justify="right")
     table.add_column("Start", justify="center")
@@ -100,7 +103,9 @@ def print_schedule(start: Start) -> None:
         return
 
     console.print("\n[bold]Delays[/]")
-    dtable = Table(show_header=True, header_style="bold", padding=(0, 1))
+    dtable = Table(
+        show_header=True, header_style="bold", padding=(0, 1), box=box.HORIZONTALS
+    )
     dtable.add_column("From")
     dtable.add_column("To")
     dtable.add_column("Target", justify="right")
@@ -178,7 +183,9 @@ def build_live_display(protocols: list[Start]) -> Group:
     progress_bar = ProgressBar(total=total, completed=done, width=40)
 
     # Schedule table
-    table = Table(show_header=True, header_style="bold", padding=(0, 1))
+    table = Table(
+        show_header=True, header_style="bold", padding=(0, 1), box=box.HORIZONTALS
+    )
     table.add_column("Name")
     table.add_column("Offset", justify="right")
     table.add_column("Start", justify="center")
