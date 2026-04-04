@@ -6,9 +6,21 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from src.protocol import Delay, Node, Protocol, Start
+from src.protocol import Delay, Node, Protocol, ProtocolState, Start
 
 console = Console()
+
+_STATE_STYLE = {
+    ProtocolState.PENDING: "",
+    ProtocolState.RUNNING: "[bold yellow]Running[/]",
+    ProtocolState.COMPLETED: "[green]Done[/]",
+    ProtocolState.SKIPPED: "[cyan]Skipped[/]",
+    ProtocolState.ABORTED: "[red]Aborted[/]",
+}
+
+
+def _format_state(state: ProtocolState) -> str:
+    return _STATE_STYLE.get(state, state.value)
 
 
 def _add_node_to_tree(tree: Tree, node: Node) -> None:
@@ -63,17 +75,9 @@ def print_schedule(start: Start) -> None:
     for node in sorted_nodes:
         if node.scheduled_time is None:
             continue
-        if node.started_time is not None:
-            started = node.started_time
-            status = "[yellow]Started[/]"
-        else:
-            started = node.scheduled_time
-            status = ""
-        if node.finished_time is not None:
-            finished = node.finished_time
-            status = "[green]Done[/]"
-        else:
-            finished = node.scheduled_time + node.duration
+        started = node.started_time or node.scheduled_time
+        finished = node.finished_time or (node.scheduled_time + node.duration)
+        status = _format_state(node.state)
 
         offset = timedelta(seconds=round((started - first_time).total_seconds()))
         duration = timedelta(
@@ -146,7 +150,12 @@ def build_live_display(protocols: list[Start]) -> Group:
     sorted_nodes = sorted(all_protocols, key=lambda x: x.scheduled_time or datetime.max)
 
     total = len(sorted_nodes)
-    done = sum(1 for n in sorted_nodes if n.finished_time is not None)
+    done = sum(
+        1
+        for n in sorted_nodes
+        if n.state
+        in (ProtocolState.COMPLETED, ProtocolState.SKIPPED, ProtocolState.ABORTED)
+    )
     # Time range
     first_time = sorted_nodes[0].scheduled_time or now
     last_node = sorted_nodes[-1]
@@ -181,29 +190,29 @@ def build_live_display(protocols: list[Start]) -> Group:
         if node.scheduled_time is None:
             continue
 
-        # Determine display times and status
-        if node.finished_time is not None:
-            started = node.started_time or node.scheduled_time
-            finished = node.finished_time
-            status = "[green]Done[/]"
-            row_style = "dim"
-        elif node.started_time is not None:
-            started = node.started_time
-            finished = node.scheduled_time + node.duration
-            status = "[bold yellow]Running[/]"
+        # Determine display times and row style
+        started = node.started_time or node.scheduled_time
+        finished = node.finished_time or (node.scheduled_time + node.duration)
+
+        if node.state == ProtocolState.RUNNING:
             row_style = ""
+        elif node.state == ProtocolState.PENDING:
+            row_style = "dim"
         else:
-            started = node.scheduled_time
-            finished = node.scheduled_time + node.duration
+            row_style = "dim"
+
+        # Status column
+        if node.state == ProtocolState.PENDING:
             wait = (node.scheduled_time - now).total_seconds()
             if wait > 0:
                 status = f"[dim]in {timedelta(seconds=int(wait))}[/]"
             else:
-                status = ""
-            row_style = "dim"
+                status = _format_state(node.state)
+        else:
+            status = _format_state(node.state)
 
         offset = timedelta(seconds=round((started - first_time).total_seconds()))
-        if node.started_time is not None and node.finished_time is None:
+        if node.state == ProtocolState.RUNNING and node.started_time is not None:
             # Running: show elapsed time
             duration = timedelta(
                 seconds=round((now - node.started_time).total_seconds())

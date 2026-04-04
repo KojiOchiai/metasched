@@ -2,8 +2,8 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
+from uuid import UUID
 
-import click
 import typer
 
 from src.console import print_protocol_tree, print_schedule
@@ -34,17 +34,31 @@ def _show_incomplete_state(state: IncompleteState) -> None:
         typer.echo(f"  Pending tasks: {', '.join(state.pending_names)}")
 
 
-def _prompt_interrupted_action(state: IncompleteState) -> InterruptedAction:
-    """Ask the user how to handle interrupted tasks."""
-    if not state.interrupted_names:
-        return InterruptedAction.RETRY
-    return InterruptedAction(
-        typer.prompt(
-            "How to handle interrupted tasks?",
-            type=click.Choice(["retry", "skip"]),
-            default="retry",
-        )
-    )
+_ACTION_SHORTCUT = {"r": "retry", "s": "skip", "a": "abort"}
+
+
+def _prompt_interrupted_action(
+    state: IncompleteState,
+) -> dict[UUID, InterruptedAction]:
+    """Ask the user how to handle each interrupted task.
+
+    Returns a mapping of protocol UUID to the chosen action.
+    """
+    if not state.interrupted_nodes:
+        return {}
+    typer.echo("  [r]etry  — restored to pre-task state, re-execute")
+    typer.echo("  [s]kip   — restored to post-task state, continue")
+    typer.echo("  [a]bort  — sample lost, skip this and all downstream tasks")
+    actions: dict[UUID, InterruptedAction] = {}
+    for node in state.interrupted_nodes:
+        while True:
+            choice = typer.prompt(f"  {node.name} [r/s/a]", default="r").strip().lower()
+            choice = _ACTION_SHORTCUT.get(choice, choice)
+            if choice in ("retry", "skip", "abort"):
+                actions[node.id] = InterruptedAction(choice)
+                break
+            typer.echo("    Invalid choice. Enter r, s, or a.")
+    return actions
 
 
 @app.command()
@@ -94,12 +108,13 @@ def execute(
     json_storage = LocalJSONStorage(statefile)
     incomplete = check_incomplete_state(json_storage)
 
+    interrupted_actions: dict[UUID, InterruptedAction] | InterruptedAction = interrupted
     if incomplete is not None:
         _show_incomplete_state(incomplete)
         if not resume and protocolfile is not None:
             resume = typer.confirm("Resume?")
         if resume and incomplete.interrupted_names:
-            interrupted = _prompt_interrupted_action(incomplete)
+            interrupted_actions = _prompt_interrupted_action(incomplete)
 
     if not (protocolfile or resume):
         raise typer.BadParameter("Either --protocolfile or --resume must be specified.")
@@ -115,7 +130,7 @@ def execute(
         driver=create_driver(driver),
         json_storage=json_storage,
         resume=resume,
-        interrupted=interrupted,
+        interrupted=interrupted_actions,
     )
 
     async def aloop():

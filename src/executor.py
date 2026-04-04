@@ -16,6 +16,7 @@ from src.protocol import (
     Delay,
     FromType,
     Protocol,
+    ProtocolState,
     Start,
     format_protocol,
     protocol_from_dict,
@@ -27,16 +28,21 @@ logger = logging.getLogger("executor")
 class InterruptedAction(str, Enum):
     RETRY = "retry"
     SKIP = "skip"
+    ABORT = "abort"
 
 
 @dataclass
 class IncompleteState:
     """Information about an incomplete previous run."""
 
-    interrupted_names: list[str]
-    """Protocol names that were started but not finished."""
+    interrupted_nodes: list[Protocol]
+    """Protocol nodes that were started but not finished."""
     pending_names: list[str]
     """Protocol names that were not yet started."""
+
+    @property
+    def interrupted_names(self) -> list[str]:
+        return [n.name for n in self.interrupted_nodes]
 
 
 def check_incomplete_state(json_storage: JSONStorage) -> IncompleteState | None:
@@ -51,16 +57,12 @@ def check_incomplete_state(json_storage: JSONStorage) -> IncompleteState | None:
     protocols = [protocol_from_dict(d) for d in data["protocols"]]
     all_nodes = sum((p.flatten() for p in protocols), [])
     protocol_nodes = [n for n in all_nodes if isinstance(n, Protocol)]
-    interrupted = [
-        n.name
-        for n in protocol_nodes
-        if n.started_time is not None and n.finished_time is None
-    ]
-    pending = [n.name for n in protocol_nodes if n.started_time is None]
+    interrupted = [n for n in protocol_nodes if n.state == ProtocolState.RUNNING]
+    pending = [n for n in protocol_nodes if n.state == ProtocolState.PENDING]
     if interrupted or pending:
         return IncompleteState(
-            interrupted_names=interrupted,
-            pending_names=pending,
+            interrupted_nodes=interrupted,
+            pending_names=[n.name for n in pending],
         )
     return None
 
@@ -72,7 +74,8 @@ class Executor:
         driver: Driver,
         json_storage: JSONStorage,
         resume: bool = False,
-        interrupted: InterruptedAction = InterruptedAction.RETRY,
+        interrupted: dict[uuid.UUID, InterruptedAction]
+        | InterruptedAction = InterruptedAction.RETRY,
     ) -> None:
         self.await_list = AwaitList()
         self.protocols: list[Start] = []
@@ -97,16 +100,26 @@ class Executor:
             self._handle_interrupted_protocols(interrupted)
             asyncio.run(self.optimize())
 
-    def _handle_interrupted_protocols(self, action: InterruptedAction) -> None:
-        """Handle protocols that were started but not finished (interrupted)."""
+    def _handle_interrupted_protocols(
+        self,
+        actions: dict[uuid.UUID, InterruptedAction] | InterruptedAction,
+    ) -> None:
+        """Handle protocols that were started but not finished (interrupted).
+
+        actions: Either a single action applied to all interrupted protocols,
+                 or a dict mapping protocol UUID to per-task action.
+        """
         for start in self.protocols:
             for node in start.flatten():
                 if not (
-                    isinstance(node, Protocol)
-                    and node.started_time is not None
-                    and node.finished_time is None
+                    isinstance(node, Protocol) and node.state == ProtocolState.RUNNING
                 ):
                     continue
+                if isinstance(actions, dict):
+                    action = actions.get(node.id, InterruptedAction.RETRY)
+                else:
+                    action = actions
+
                 if action == InterruptedAction.RETRY:
                     logger.warning(
                         {
@@ -117,18 +130,52 @@ class Executor:
                             "message": "Resetting interrupted protocol for re-execution",
                         }
                     )
+                    node.state = ProtocolState.PENDING
                     node.started_time = None
-                else:
-                    node.finished_time = node.started_time + node.duration
+                elif action == InterruptedAction.SKIP:
                     logger.warning(
                         {
                             "function": "_handle_interrupted_protocols",
                             "action": "skip",
                             "protocol_id": str(node.id),
                             "protocol_name": node.name,
-                            "message": "Marking interrupted protocol as finished",
+                            "message": "Marking interrupted protocol as skipped",
                         }
                     )
+                    node.state = ProtocolState.SKIPPED
+                    node.finished_time = node.started_time + node.duration
+                elif action == InterruptedAction.ABORT:
+                    logger.warning(
+                        {
+                            "function": "_handle_interrupted_protocols",
+                            "action": "abort",
+                            "protocol_id": str(node.id),
+                            "protocol_name": node.name,
+                            "message": "Aborting protocol and all downstream tasks",
+                        }
+                    )
+                    node.state = ProtocolState.ABORTED
+                    node.finished_time = node.started_time + node.duration
+                    # Abort all downstream Protocol descendants
+                    now = datetime.now()
+                    for descendant in node.flatten():
+                        if (
+                            isinstance(descendant, Protocol)
+                            and descendant.id != node.id
+                            and descendant.state == ProtocolState.PENDING
+                        ):
+                            descendant.state = ProtocolState.ABORTED
+                            descendant.started_time = now
+                            descendant.finished_time = now
+                            logger.warning(
+                                {
+                                    "function": "_handle_interrupted_protocols",
+                                    "action": "abort_downstream",
+                                    "protocol_id": str(descendant.id),
+                                    "protocol_name": descendant.name,
+                                    "message": "Aborted downstream protocol",
+                                }
+                            )
 
     def _save_state(self) -> str:
         """Save current protocol state with optimizer metadata."""
@@ -177,7 +224,7 @@ class Executor:
         all_protocol: list[Protocol] = [
             p for p in marged_protocol.flatten() if type(p) is Protocol
         ]
-        protocols = [p for p in all_protocol if p.started_time is None]
+        protocols = [p for p in all_protocol if p.state == ProtocolState.PENDING]
         if len(protocols) == 0:
             logger.info({"function": "optimize", "type": "end", "message": "no tasks"})
             self._save_state()
@@ -225,9 +272,11 @@ class Executor:
 
         # execute
         protocol_name: str = current_protocol.name
+        current_protocol.state = ProtocolState.RUNNING
         current_protocol.started_time = datetime.now()
         self._save_state()
         result = await self.driver.run(protocol_name)
+        current_protocol.state = ProtocolState.COMPLETED
         current_protocol.finished_time = datetime.now()
         logger.info(
             {

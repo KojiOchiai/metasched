@@ -19,6 +19,14 @@ class FromType(Enum):
     FINISH = "finish"
 
 
+class ProtocolState(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+    ABORTED = "aborted"
+
+
 class Node(BaseModel):
     node_type: NodeType
     id: UUID = Field(default_factory=uuid4)
@@ -97,6 +105,7 @@ class Protocol(Node):
     node_type: NodeType = NodeType.PROTOCOL
     name: str = ""
     duration: timedelta = Field(default_factory=lambda: timedelta(seconds=0))
+    state: ProtocolState = ProtocolState.PENDING
     scheduled_time: datetime | None = None
     started_time: datetime | None = None
     finished_time: datetime | None = None
@@ -104,6 +113,7 @@ class Protocol(Node):
     def __str__(self, indent: int = 0) -> str:
         base = (
             f"Protocol(name={self.name}"
+            f", state={self.state.value}"
             f", duration={self.duration}"
             f", scheduled_time={self.scheduled_time}"
             f", started_time={self.started_time}"
@@ -158,17 +168,12 @@ def format_protocol(start: Start) -> str:
     txt = f"Schedule: (total duration: {total_duration})\n"
     for node in sorted_nodes:
         if node.scheduled_time is not None:
-            state = ""
-            if node.started_time is not None:
-                started_time = node.started_time
-                state = "[Started]"
+            started_time = node.started_time or node.scheduled_time
+            finished_time = node.finished_time or (node.scheduled_time + node.duration)
+            if node.state == ProtocolState.PENDING:
+                state = ""
             else:
-                started_time = node.scheduled_time
-            if node.finished_time is not None:
-                finished_time = node.finished_time
-                state = "[Done]"
-            else:
-                finished_time = node.scheduled_time + node.duration
+                state = f"[{node.state.value.capitalize()}]"
             duration = finished_time - node.scheduled_time
             txt += (
                 f" - {node.name}: "

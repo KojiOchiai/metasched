@@ -184,6 +184,8 @@ class Optimizer:
         for node in nodes:
             if not isinstance(node, protocol.Protocol):
                 continue
+            if node.id not in pvars:
+                continue
             pv = pvars[node.id]
             for post_node in node.post_node:
                 if isinstance(post_node, protocol.Protocol):
